@@ -225,12 +225,14 @@ export default function Home() {
           else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
         }
         if (!dataLines.length) return;
-        const payload = JSON.parse(dataLines.join("\n")) as { text?: string; model?: string; modelId?: string; label?: string; error?: string; message?: string };
+        const payload = JSON.parse(dataLines.join("\n")) as { text?: string; model?: string; modelId?: string; label?: string; error?: string; message?: string; name?: string };
         if (eventName === "meta") setModel(payload.label || payload.model || "LAZIX");
         if (eventName === "delta" && typeof payload.text === "string") {
           assistantText += payload.text;
           setMessages([...next, { role: "assistant", content: assistantText }]);
         }
+        if (eventName === "tool") setNotice("LAZIX is using " + (payload.name || "a tool") + "...");
+        if (eventName === "done") setNotice("");
         if (eventName === "provider_fallback") setNotice(payload.message || "Switching to backup model...");
         if (eventName === "error") throw new Error(payload.error || "AI provider failed.");
       };
