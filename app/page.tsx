@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -19,6 +21,13 @@ const starters = [
   { icon: "◎", title: "Learn a topic", prompt: "Teach me a topic from the basics with clear examples." },
   { icon: "↗", title: "Solve a problem", prompt: "Help me break down a problem and find the best solution." }
 ];
+
+function MessageContent({ content }: { content: string }) {
+  return <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+    a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+    pre: ({ children }) => <pre className="markdown-code">{children}</pre>
+  }}>{content}</ReactMarkdown>;
+}
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -297,7 +306,7 @@ export default function Home() {
               <div className="conversation-top"><div><span className="live-indicator" /><b>LAZIX</b><small>Personal AI assistant</small></div><div className="model-picker-wrap"><span className="model-live-dot" /><select className="model-picker" aria-label="Choose AI model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy || models.length < 2}>{models.length ? models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>) : <option value="">Connect a model</option>}</select>{model && <span className="model-used">{model}</span>}</div></div>
               <div className="message-feed" aria-live="polite">
                 {!messages.length && <div className="welcome-state"><div className="welcome-orb"><span>✳</span></div><h2>What’s on your mind?</h2><p>Ask anything. Start building. Figure it out together.</p><div className="starter-grid">{starters.map((item) => <button key={item.title} onClick={() => sendMessage(undefined, item.prompt)}><span>{item.icon}</span><b>{item.title}</b><i>↗</i></button>)}</div></div>}
-                {messages.map((message, index) => <article className={`message-row ${message.role}`} key={index}><div className="message-avatar">{message.role === "user" ? "Y" : "L"}</div><div className="message-body"><div className="message-meta">{message.role === "user" ? "YOU" : "LAZIX"}<span>{message.role === "assistant" ? "✳" : ""}</span></div><p>{message.content}</p></div></article>)}
+                {messages.map((message, index) => <article className={`message-row ${message.role}`} key={index}><div className="message-avatar">{message.role === "user" ? "Y" : "L"}</div><div className="message-body"><div className="message-meta">{message.role === "user" ? "YOU" : "LAZIX"}<span>{message.role === "assistant" ? "✳" : ""}</span></div>{message.role === "user" ? <p>{message.content}</p> : <div className="message-content"><MessageContent content={message.content} /></div>}</div></article>)}
                 {busy && <div className="thinking-row"><span className="thinking-orb">✳</span><div><b>LAZIX is working</b><small>Thinking through your request...</small></div><div className="thinking-dots"><i /><i /><i /></div></div>}
                 <div ref={endRef} />
               </div>
