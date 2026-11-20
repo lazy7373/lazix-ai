@@ -16,7 +16,7 @@ function getProviders(): Provider[] {
 }
 
 function getUserClient(request: NextRequest) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!token || !url || !key) return null;
@@ -35,8 +35,8 @@ async function extractAndSaveMemories(
   reply: string
 ) {
   try {
-    const recent = messages.slice(-10).map((m) => `${m.role}: ${m.content}`).join("\\n");
-    const base = provider.baseUrl.replace(/\\/+$/, "");
+    const recent = messages.slice(-10).map((m) => `${m.role}: ${m.content}`).join("\n");
+    const base = provider.baseUrl.replace(/\/+$/, "");
     const endpoint = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -46,7 +46,7 @@ async function extractAndSaveMemories(
         temperature: 0,
         messages: [
           { role: "system", content: "You are a careful memory curator. Extract at most 3 concise, useful, durable facts explicitly stated by the user that would improve future assistance (stable preferences, ongoing projects, goals, recurring constraints). Do not infer facts. Never save passwords, API keys, tokens, financial identifiers, sensitive personal data, one-time tasks, temporary states, or facts only stated by the assistant. If nothing qualifies, return an empty array. Return ONLY valid JSON in this shape: {\"memories\":[\"fact\"]}. Each item must be under 300 characters." },
-          { role: "user", content: `Conversation:\\n${recent}\\n\\nAssistant reply:\\n${reply}\\n\\nReturn candidate memories.` }
+          { role: "user", content: `Conversation:\n${recent}\n\nAssistant reply:\n${reply}\n\nReturn candidate memories.` }
         ]
       }),
       signal: AbortSignal.timeout(15000)
@@ -55,7 +55,7 @@ async function extractAndSaveMemories(
     const result = await response.json();
     const raw = result?.choices?.[0]?.message?.content;
     if (typeof raw !== "string") return;
-    const parsed = JSON.parse(raw.replace(/^```(?:json)?\\s*/i, "").replace(/\\s*```$/, ""));
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
     const candidates: string[] = Array.isArray(parsed.memories) ? parsed.memories : [];
     const { data: existing } = await supabase.from("memories").select("content")
       .eq("user_id", userId).order("updated_at", { ascending: false }).limit(40);
@@ -103,12 +103,12 @@ export async function POST(request: NextRequest) {
     memories = (data || []).map((row) => row.content as string);
   }
   const memoryContext = memories.length
-    ? "\\n\\nLong-term memory saved by this user (use only when relevant; if a memory conflicts with the user's current message, follow the current message):\\n" + memories.map((item) => `- ${item}`).join("\\n")
+    ? "\n\nLong-term memory saved by this user (use only when relevant; if a memory conflicts with the user's current message, follow the current message):\n" + memories.map((item) => `- ${item}`).join("\n")
     : "";
 
   for (const provider of providers) {
     try {
-      const base = provider.baseUrl.replace(/\\/+$/, "");
+      const base = provider.baseUrl.replace(/\/+$/, "");
       const endpoint = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
       const upstream = await fetch(endpoint, {
         method: "POST",
