@@ -53,7 +53,20 @@ let cachedCatalog: { expiresAt: number; providers: ModelProvider[] } | null = nu
 export async function getModelProviders(discoverCatalog = true): Promise<ModelProvider[]> {
   const configured = configuredList();
   // Chat requests must never wait for the optional OpenRouter catalog request.
-  if (!discoverCatalog) return cachedCatalog && cachedCatalog.expiresAt > Date.now() ? cachedCatalog.providers : configured;
+  if (!discoverCatalog) {
+    if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return cachedCatalog.providers;
+    const primary = configured[0];
+    if (!process.env.MODEL_PROVIDERS_JSON && primary?.baseUrl.includes("openrouter.ai")) {
+      const backupIds = ["nvidia/nemotron-3.5-lightning:free", "cohere/north-mini-code:free", "nvidia/nemotron-3.5-super-vl:free"];
+      const quickFallbacks: ModelProvider[] = [
+        { id: "openrouter-auto-free", label: "OpenRouter · Auto Free", baseUrl: primary.baseUrl, apiKey: primary.apiKey, model: "openrouter/free" },
+        ...configured,
+        ...backupIds.map((model) => ({ id: "openrouter:" + model, label: model, baseUrl: primary.baseUrl, apiKey: primary.apiKey, model }))
+      ];
+      return quickFallbacks.filter((provider, index, all) => all.findIndex((item) => item.model === provider.model) === index);
+    }
+    return configured;
+  }
   if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return cachedCatalog.providers;
   if (process.env.MODEL_PROVIDERS_JSON || !configured.length || !configured[0].baseUrl.includes("openrouter.ai")) return configured;
 
