@@ -53,7 +53,7 @@ let cachedCatalog: { expiresAt: number; providers: ModelProvider[] } | null = nu
 export async function getModelProviders(discoverCatalog = true): Promise<ModelProvider[]> {
   const configured = configuredList();
   // Chat requests must never wait for the optional OpenRouter catalog request.
-  if (!discoverCatalog) return configured;
+  if (!discoverCatalog) return cachedCatalog && cachedCatalog.expiresAt > Date.now() ? cachedCatalog.providers : configured;
   if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return cachedCatalog.providers;
   if (process.env.MODEL_PROVIDERS_JSON || !configured.length || !configured[0].baseUrl.includes("openrouter.ai")) return configured;
 
