@@ -9,7 +9,8 @@ LAZIX is an independent, text-first personal AI workspace designed for Android t
 - Responsive web chat interface.
 - Chat history saved in the current browser using local storage.
 - Server-side model connection; API keys are never sent to the browser.
-- Primary and optional fallback routing for OpenAI-compatible chat-completions APIs.
+- Multi-provider model routing with in-chat model selection and automatic fallback.
+- Automatic memory extraction runs after the chat response, so it does not hold up the reply.
 - Installable-web-app manifest foundation.
 - No voice features and no dependency on OmniRoute.
 
@@ -29,13 +30,30 @@ To enable AI replies, fill the model environment variables in `.env.local`. Keep
 
 ## Model configuration
 
-The server supports a primary and optional fallback provider that implements the OpenAI-compatible `/v1/chat/completions` API. Set:
+The server supports multiple OpenAI-compatible providers. For the existing simple setup, set `MODEL_PRIMARY_BASE_URL`, `MODEL_PRIMARY_API_KEY`, and `MODEL_PRIMARY_NAME`; optionally add the equivalent `MODEL_FALLBACK_*` variables.
 
-- `MODEL_PRIMARY_BASE_URL`
-- `MODEL_PRIMARY_API_KEY`
-- `MODEL_PRIMARY_NAME`
+For an in-app model picker with several providers, set `MODEL_PROVIDERS_JSON` to a JSON array. Each entry has an `id`, `label`, `baseUrl`, `apiKey`, and `model`. Example (replace the placeholder key and model names with real values):
 
-Optionally set the equivalent `MODEL_FALLBACK_*` variables. LAZIX tries the primary first, then the fallback if the request fails.
+```json
+[
+  {
+    "id": "openrouter-free",
+    "label": "OpenRouter Free",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "apiKey": "YOUR_OPENROUTER_KEY",
+    "model": "openrouter/free"
+  },
+  {
+    "id": "groq-fast",
+    "label": "Groq",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "apiKey": "YOUR_GROQ_KEY",
+    "model": "YOUR_GROQ_MODEL"
+  }
+]
+```
+
+When `MODEL_PROVIDERS_JSON` is set, it takes precedence over the legacy primary/fallback variables. The selected model is tried first; other configured providers are automatic fallbacks. API keys remain server-side and are never returned by the model-list endpoint.
 
 Free provider plans may have usage limits and may require account/API keys. LAZIX does not promise unlimited free inference.
 
