@@ -148,8 +148,8 @@ async function streamCompletion(provider: Provider, messages: AgentMessage[], on
 function isSafeMemoryFact(fact: string) {
   return fact.length > 0 && fact.length <= 250 &&
     !/(password|passcode|api[ _-]?key|token|secret|otp|one[- ]time code|credit card|cvv|ssn)/i.test(fact) &&
-    !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i.test(fact) &&
-    !/\\+?\\d[\\d\\s().-]{8,}\\d/.test(fact);
+    !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(fact) &&
+    !/\+?\d[\d\s().-]{8,}\d/.test(fact);
 }
 
 async function extractMemories(provider: Provider, supabase: SupabaseClient<Database>, userId: string, messages: ChatMessage[], reply: string) {
