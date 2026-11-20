@@ -127,26 +127,60 @@ export default function Home() {
     if (!text || busy) return;
     const next = [...messages, { role: "user" as const, content: text }];
     setMessages(next); setInput(""); setBusy(true); setNotice("");
+    let assistantText = "";
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
         body: JSON.stringify({ messages: next, autoMemory, modelId: selectedModel || undefined })
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "The request failed.");
-      setMessages([...next, { role: "assistant", content: data.reply }]);
-      setModel(data.model || "");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ error: "The request failed." }));
+        throw new Error(data.error || "The request failed.");
+      }
+      if (!response.body) throw new Error("Streaming is not available in this browser.");
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      const handleEvent = (raw: string) => {
+        let eventName = "message";
+        const dataLines: string[] = [];
+        for (const line of raw.split("\\n")) {
+          if (line.startsWith("event:")) eventName = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
+        }
+        if (!dataLines.length) return;
+        const payload = JSON.parse(dataLines.join("\\n")) as { text?: string; model?: string; modelId?: string; label?: string; error?: string; message?: string };
+        if (eventName === "meta") setModel(payload.label || payload.model || "LAZIX");
+        if (eventName === "delta" && typeof payload.text === "string") {
+          assistantText += payload.text;
+          setMessages([...next, { role: "assistant", content: assistantText }]);
+        }
+        if (eventName === "provider_fallback") setNotice(payload.message || "Switching to backup model...");
+        if (eventName === "error") throw new Error(payload.error || "AI provider failed.");
+      };
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true }).replace(/\\r\\n/g, "\\n");
+        const events = buffer.split("\\n\\n");
+        buffer = events.pop() || "";
+        for (const raw of events) handleEvent(raw);
+      }
+      if (buffer.trim()) handleEvent(buffer);
+      if (!assistantText.trim()) throw new Error("The model returned an empty response. Try another model.");
       if (session?.access_token && autoMemory) {
         window.setTimeout(async () => {
           try {
             const r = await fetch("/api/memory", { headers: { Authorization: `Bearer ${session.access_token}` } });
             if (r.ok) { const d = await r.json(); setMemories(d.memories || []); }
           } catch { /* best effort */ }
-        }, 15000);
+        }, 12000);
       }
-    } catch (error) { setMessages([...next, { role: "assistant", content: error instanceof Error ? error.message : "Something went wrong." }]); }
-    finally { setBusy(false); }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Something went wrong.";
+      setMessages([...next, { role: "assistant", content: assistantText ? `${assistantText}\\n\\n[Connection interrupted: ${message}]` : message }]);
+    } finally { setBusy(false); }
   }
 
   function newChat() {
