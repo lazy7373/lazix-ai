@@ -77,12 +77,6 @@ export default function Home() {
       setAutoMemory(localStorage.getItem(AUTO_KEY) !== "false");
     } catch { localStorage.removeItem(CHAT_KEY); localStorage.removeItem(THREAD_KEY); }
     setReady(true);
-    fetch("/api/models").then((response) => response.json()).then((data: { models?: ModelOption[]; integrations?: IntegrationStatus }) => {
-      const available = Array.isArray(data.models) ? data.models : [];
-      setModels(available);
-      if (available.length) setSelectedModel(available[0].id);
-      if (data.integrations) setIntegrations(data.integrations);
-    }).catch(() => setModels([]));
   }, []);
 
   useEffect(() => {
@@ -94,6 +88,17 @@ export default function Home() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    fetch("/api/models", { headers: session?.access_token ? { Authorization: "Bearer " + session.access_token } : {} })
+      .then((response) => response.json())
+      .then((data: { models?: ModelOption[]; integrations?: IntegrationStatus }) => {
+        const available = Array.isArray(data.models) ? data.models : [];
+        setModels(available);
+        if (available.length && !selectedModel) setSelectedModel(available[0].id);
+        if (data.integrations) setIntegrations(data.integrations);
+      })
+      .catch(() => setModels([]));
+  }, [session?.access_token]);
   useEffect(() => {
     if (!session?.access_token) return;
     let active = true;
