@@ -2,7 +2,7 @@ name: LAZIX checks
 
 on:
   push:
-    branches: [main]
+    branches: [main, fresh-self-hosted-core]
   pull_request:
     branches: [main]
 
