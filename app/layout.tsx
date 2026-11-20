@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LAZIX — Think less. Achieve more.",
-  description: "Your personal AI workspace.",
+  title: "LAZIX — Your Personal AI Workspace.",
+  description: "A personal AI workspace with tools, memory, and multi-model support.",
   applicationName: "LAZIX",
   manifest: "/manifest.webmanifest"
 };
