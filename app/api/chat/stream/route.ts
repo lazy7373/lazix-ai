@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const abortController = new AbortController();
   request.signal.addEventListener("abort", () => abortController.abort(), { once: true });
-  const overallSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(52000)]);
+  const overallSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(45000)]);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: string, data: unknown) => { if (!abortController.signal.aborted) controller.enqueue(encoder.encode("event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n")); };
