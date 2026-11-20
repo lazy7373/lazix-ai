@@ -45,3 +45,5 @@
 .composer-tools button:hover{background:#d9d9e0;filter:none}
 .chat-footnote{padding-top:10px;text-transform:none;letter-spacing:0;font-size:9px}
 @media(max-width:760px){.chat-layout{width:calc(100% - 28px);padding:18px 0 10px}.conversation-top{padding:0 1px}.message-feed{padding:19px 1px 23px}.message-body p{font-size:13px}.message-composer{border-radius:16px;margin-bottom:4px}.chat-footnote{padding-top:7px}}
+
+.thread-heading{margin-top:25px}.thread-list{display:flex;flex-direction:column;gap:3px;max-height:38vh;overflow:auto;scrollbar-width:thin;scrollbar-color:#384258 transparent}.thread-item{width:100%;height:34px;display:flex;align-items:center;gap:8px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:#8792a5;text-align:left;min-width:0}.thread-item span{font-size:12px;flex:0 0 15px;color:#777f95}.thread-item b{font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.thread-item:hover,.thread-item.thread-active{background:#1a2030;color:#e5e8f0}.thread-item.thread-active span{color:#b5a9ff}@media(max-width:760px){.thread-list{max-height:28vh}}
