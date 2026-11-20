@@ -7,7 +7,7 @@ services:
     expose:
       - "8000"
     environment:
-      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+      HF_TOKEN: ${HF_TOKEN:-}
     volumes:
       - model-cache:/root/.cache/huggingface
     command:
