@@ -118,7 +118,7 @@ export default function Home() {
       })
       .catch((error) => { if (active) setNotice(error.message || "Could not sync conversation history."); });
     return () => { active = false; };
-  }, [session?.access_token]);
+  }, [session?.access_token, activeThreadId]);
   useEffect(() => {
     if (!session?.access_token) { setMemories([]); return; }
     let active = true;
