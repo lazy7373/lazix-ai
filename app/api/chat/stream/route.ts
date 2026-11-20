@@ -255,6 +255,7 @@ export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
   const abortController = new AbortController();
   request.signal.addEventListener("abort", () => abortController.abort(), { once: true });
+  const overallSignal = AbortSignal.any([abortController.signal, AbortSignal.timeout(52000)]);
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: string, data: unknown) => { if (!abortController.signal.aborted) controller.enqueue(encoder.encode("event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n")); };
@@ -264,7 +265,7 @@ export async function POST(request: NextRequest) {
           let accumulated = "";
           try {
             send("meta", { model: provider.model, modelId: provider.id, label: provider.label });
-            let result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
+            let result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, overallSignal);
             let turns = 0;
             while (result.toolCalls.length && turns < 3) {
               conversation.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
@@ -276,7 +277,7 @@ export async function POST(request: NextRequest) {
                 send("tool", { name: call.function.name });
               }
               accumulated = "";
-              result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
+              result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, overallSignal);
               turns++;
             }
             if (result.toolCalls.length) throw new Error("Agent reached its tool-step limit.");
