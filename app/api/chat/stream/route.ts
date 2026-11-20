@@ -101,9 +101,9 @@ async function executeTool(call: ToolCall, memories: string[]) {
 async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void) {
   const headers = { "Content-Type": "application/json", Authorization: "Bearer " + provider.apiKey };
   const basePayload: Record<string, unknown> = { model: provider.model, messages, temperature: 0.65, max_tokens: 2048, stream: true };
-  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal: AbortSignal.timeout(45000) });
+  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal: AbortSignal.timeout(30000) });
   if ((response.status === 400 || response.status === 422) && toolSpecs.length) {
-    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal: AbortSignal.timeout(45000) });
+    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal: AbortSignal.timeout(30000) });
   }
   if (!response.ok) throw new Error("Provider returned HTTP " + response.status + ".");
   if (!response.body) throw new Error("Provider did not return a stream.");
