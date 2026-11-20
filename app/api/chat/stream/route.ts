@@ -171,7 +171,7 @@ async function extractMemories(provider: Provider, supabase: SupabaseClient<Data
 async function saveExplicitMemory(supabase: SupabaseClient<Database>, userId: string, messages: ChatMessage[]) {
   const latest = messages[messages.length - 1];
   if (!latest || latest.role !== "user") return;
-  const match = latest.content.match(/^\\s*(?:please\\s+)?remember(?:\\s+that)?\\s*[:,-]?\\s*(.+)$/i);
+  const match = latest.content.match(/^\s*(?:please\s+)?remember(?:\s+that)?\s*[:,-]?\s*(.+)$/i);
   const fact = match?.[1]?.trim();
   if (!fact || fact.length > 250 || /(password|passcode|api[ _-]?key|token|secret|otp|one[- ]time code|credit card|cvv|ssn)/i.test(fact)) return;
   const { data: existing } = await supabase.from("memories").select("id").eq("user_id", userId).ilike("content", fact).limit(1);
