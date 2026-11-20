@@ -217,12 +217,12 @@ export default function Home() {
       const handleEvent = (raw: string) => {
         let eventName = "message";
         const dataLines: string[] = [];
-        for (const line of raw.split("\\n")) {
+        for (const line of raw.split("\n")) {
           if (line.startsWith("event:")) eventName = line.slice(6).trim();
           else if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
         }
         if (!dataLines.length) return;
-        const payload = JSON.parse(dataLines.join("\\n")) as { text?: string; model?: string; modelId?: string; label?: string; error?: string; message?: string };
+        const payload = JSON.parse(dataLines.join("\n")) as { text?: string; model?: string; modelId?: string; label?: string; error?: string; message?: string };
         if (eventName === "meta") setModel(payload.label || payload.model || "LAZIX");
         if (eventName === "delta" && typeof payload.text === "string") {
           assistantText += payload.text;
@@ -234,8 +234,8 @@ export default function Home() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true }).replace(/\\r\\n/g, "\\n");
-        const events = buffer.split("\\n\\n");
+        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        const events = buffer.split("\n\n");
         buffer = events.pop() || "";
         for (const raw of events) handleEvent(raw);
       }
