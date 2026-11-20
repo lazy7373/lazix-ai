@@ -1,0 +1,254 @@
+import { after, NextRequest } from "next/server";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type Provider = { id: string; label: string; baseUrl: string; apiKey: string; model: string };
+type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+type AgentMessage = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; name?: string };
+type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
+type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] }[] } };
+
+function providersFromEnv(): Provider[] {
+  const raw = process.env.MODEL_PROVIDERS_JSON;
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const result = parsed.flatMap((value, index) => {
+          if (!value || typeof value !== "object") return [];
+          const p = value as Record<string, unknown>;
+          if (typeof p.baseUrl !== "string" || typeof p.apiKey !== "string" || typeof p.model !== "string") return [];
+          return [{ id: typeof p.id === "string" ? p.id : `provider-${index + 1}`, label: typeof p.label === "string" ? p.label : p.model, baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model }];
+        });
+        if (result.length) return result;
+      }
+    } catch { /* Use legacy configuration below. */ }
+  }
+  return [
+    { id: "primary", label: process.env.MODEL_PRIMARY_LABEL || "Primary", baseUrl: process.env.MODEL_PRIMARY_BASE_URL || "", apiKey: process.env.MODEL_PRIMARY_API_KEY || "", model: process.env.MODEL_PRIMARY_NAME || "" },
+    { id: "fallback", label: process.env.MODEL_FALLBACK_LABEL || "Fallback", baseUrl: process.env.MODEL_FALLBACK_BASE_URL || "", apiKey: process.env.MODEL_FALLBACK_API_KEY || "", model: process.env.MODEL_FALLBACK_NAME || "" }
+  ].filter((p) => p.baseUrl && p.apiKey && p.model);
+}
+
+function userClient(request: NextRequest) {
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !key) return null;
+  const supabase = createClient<Database>(url, key, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } });
+  return { supabase, token };
+}
+
+function endpointFor(provider: Provider) {
+  const base = provider.baseUrl.replace(/\/+$/, "");
+  return base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
+}
+
+function calculate(input: string): number {
+  if (input.length > 160 || !/^[\d+\-*/().,%^\s]+$/.test(input)) throw new Error("Only basic arithmetic is supported.");
+  const tokens = input.match(/\d+(?:\.\d+)?|[()+\-*/%^]/g) || [];
+  if (tokens.join("").length !== input.replace(/\s/g, "").length) throw new Error("Invalid expression.");
+  let i = 0;
+  const peek = () => tokens[i];
+  const take = () => tokens[i++];
+  function atom(): number {
+    if (peek() === "+") { take(); return atom(); }
+    if (peek() === "-") { take(); return -atom(); }
+    if (peek() === "(") { take(); const n = sum(); if (take() !== ")") throw new Error("Missing closing parenthesis."); return n; }
+    const token = take();
+    if (!token || !/^\d+(?:\.\d+)?$/.test(token)) throw new Error("Expected a number.");
+    return Number(token);
+  }
+  function power(): number { const n = atom(); if (peek() === "^") { take(); return n ** power(); } return n; }
+  function product(): number {
+    let n = power();
+    while (["*", "/", "%"].includes(peek() || "")) {
+      const op = take(); const rhs = power();
+      if ((op === "/" || op === "%") && rhs === 0) throw new Error("Cannot divide by zero.");
+      n = op === "*" ? n * rhs : op === "/" ? n / rhs : n % rhs;
+    }
+    return n;
+  }
+  function sum(): number { let n = product(); while (peek() === "+" || peek() === "-") { const op = take(); const rhs = product(); n = op === "+" ? n + rhs : n - rhs; } return n; }
+  const value = sum();
+  if (i !== tokens.length || !Number.isFinite(value)) throw new Error("Invalid expression.");
+  return Number(value.toPrecision(12));
+}
+
+const toolSpecs: ToolSpec[] = [
+  { type: "function", function: { name: "calculator", description: "Calculate arithmetic exactly. Use for non-trivial calculations.", parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"], additionalProperties: false } } },
+  { type: "function", function: { name: "get_current_datetime", description: "Get the current date and time.", parameters: { type: "object", properties: {}, additionalProperties: false } } },
+  { type: "function", function: { name: "search_memory", description: "Find relevant facts from the signed-in user's permanent memories.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } },
+  ...(process.env.TAVILY_API_KEY ? [{ type: "function" as const, function: { name: "web_search", description: "Search the web for current information. Use this for recent facts, comparisons, and research. Return source URLs.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }] : [])
+];
+
+async function executeTool(call: ToolCall, memories: string[]) {
+  let args: Record<string, unknown>;
+  try { args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>; } catch { return "Invalid tool arguments."; }
+  if (call.function.name === "calculator") return typeof args.expression === "string" ? String(calculate(args.expression)) : "Expression must be text.";
+  if (call.function.name === "get_current_datetime") return new Date().toISOString();
+  if (call.function.name === "search_memory") {
+    const query = typeof args.query === "string" ? args.query.toLowerCase() : "";
+    const words = query.split(/\s+/).filter((word) => word.length > 2);
+    const matches = memories.map((content) => ({ content, score: words.filter((word) => content.toLowerCase().includes(word)).length })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
+    return matches.length ? matches.map((item) => item.content).join("\n") : "No matching saved memories.";
+  }
+  if (call.function.name === "web_search" && process.env.TAVILY_API_KEY && typeof args.query === "string") {
+    const response = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query: args.query.slice(0, 400), search_depth: "basic", max_results: 5, include_answer: false }), signal: AbortSignal.timeout(12000) });
+    if (!response.ok) throw new Error(`Web search failed (${response.status}).`);
+    const data = await response.json() as { results?: { title?: string; url?: string; content?: string }[] };
+    return (data.results || []).map((item, index) => `[${index + 1}] ${item.title || "Source"}\nURL: ${item.url || ""}\n${item.content || ""}`).join("\n\n") || "No results found.";
+  }
+  return "Tool unavailable.";
+}
+
+async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void) {
+  const response = await fetch(endpointFor(provider), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+    body: JSON.stringify({ model: provider.model, messages, temperature: 0.65, stream: true, tools: toolSpecs, tool_choice: "auto" }),
+    signal: AbortSignal.timeout(45000)
+  });
+  if (!response.ok) throw new Error(`Provider returned HTTP ${response.status}.`);
+  if (!response.body) throw new Error("Provider did not return a stream.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  const toolMap = new Map<number, ToolCall>();
+  const consume = (raw: string) => {
+    for (const line of raw.split("\n")) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      let packet: { choices?: { delta?: { content?: string | null; tool_calls?: { index: number; id?: string; type?: "function"; function?: { name?: string; arguments?: string } }[] }[] };
+      try { packet = JSON.parse(data) as typeof packet; } catch { continue; }
+      const delta = packet.choices?.[0]?.delta;
+      if (typeof delta?.content === "string") { content += delta.content; onText(delta.content); }
+      for (const part of delta?.tool_calls || []) {
+        const current = toolMap.get(part.index) || { id: "", type: "function" as const, function: { name: "", arguments: "" } };
+        if (part.id) current.id = part.id;
+        if (part.function?.name) current.function.name += part.function.name;
+        if (part.function?.arguments) current.function.arguments += part.function.arguments;
+        toolMap.set(part.index, current);
+      }
+    }
+  };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+      const events = buffer.split("\n\n");
+      buffer = events.pop() || "";
+      for (const event of events) consume(event);
+    }
+    if (buffer.trim()) consume(buffer);
+  } finally { reader.releaseLock(); }
+  return { content, toolCalls: [...toolMap.values()] };
+}
+
+async function extractMemories(provider: Provider, supabase: SupabaseClient<Database>, userId: string, messages: ChatMessage[], reply: string) {
+  try {
+    const recent = messages.slice(-8).map((m) => `${m.role}: ${m.content}`).join("\n");
+    const response = await fetch(endpointFor(provider), {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+      body: JSON.stringify({ model: provider.model, temperature: 0, messages: [
+        { role: "system", content: "Extract at most 2 concise durable facts explicitly stated by the user: stable preferences, ongoing projects, goals, recurring constraints. Do not infer. Never save secrets, credentials, sensitive personal data, or temporary states. Return only JSON {\"memories\":[\"fact\"]}. Each under 250 characters." },
+        { role: "user", content: `Conversation:\n${recent}\n\nAssistant reply:\n${reply}` }
+      ] }), signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) return;
+    const result = await response.json() as Completion;
+    const raw = result.choices?.[0]?.message?.content;
+    if (typeof raw !== "string") return;
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as { memories?: unknown[] };
+    const candidates = Array.isArray(parsed.memories) ? parsed.memories.filter((item): item is string => typeof item === "string") : [];
+    const { data: existing } = await supabase.from("memories").select("content").eq("user_id", userId).limit(100);
+    const known = new Set((existing || []).map((row) => row.content.trim().toLowerCase()));
+    const fresh = [...new Set(candidates.map((item) => item.trim()).filter((item) => item.length > 0 && item.length <= 250 && !known.has(item.toLowerCase())))].slice(0, 2);
+    if (fresh.length) await supabase.from("memories").insert(fresh.map((content) => ({ user_id: userId, content })));
+  } catch { /* Background memory is best effort and never blocks the answer. */ }
+}
+
+export async function POST(request: NextRequest) {
+  let body: { messages?: ChatMessage[]; autoMemory?: boolean; modelId?: string };
+  try { body = await request.json() as typeof body; } catch { return new Response(JSON.stringify({ error: "Invalid request body." }), { status: 400 }); }
+  if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 30) return new Response(JSON.stringify({ error: "Send between 1 and 30 messages." }), { status: 400 });
+  const messages = body.messages;
+  if (messages.some((m) => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 12000)) return new Response(JSON.stringify({ error: "Message format is invalid." }), { status: 400 });
+
+  const providers = providersFromEnv();
+  if (!providers.length) return new Response(JSON.stringify({ error: "Connect an AI provider in Render environment settings first." }), { status: 503 });
+  const selected = providers.findIndex((p) => p.id === body.modelId);
+  const ordered = selected > 0 ? [providers[selected], ...providers.filter((_, i) => i !== selected)] : providers;
+  const auth = userClient(request);
+  let userId: string | null = null;
+  let memories: string[] = [];
+  if (auth) {
+    const { data: { user } } = await auth.supabase.auth.getUser(auth.token);
+    if (user) {
+      userId = user.id;
+      const { data } = await auth.supabase.from("memories").select("content").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(40);
+      memories = (data || []).map((row) => row.content);
+    }
+  }
+
+  const system = "You are LAZIX, a capable personal AI assistant. Be accurate, clear, warm, and practical. Match the user's language. Use tools only when they materially improve the answer. For current facts use web_search when available and cite the returned URLs in your answer. Never invent sources, results, or completed actions. Keep private reasoning private. Ask one focused question only when necessary.";
+  const memoryContext = memories.length ? "\n\nRelevant permanent memories (use only when relevant; current user instructions take precedence):\n" + memories.map((item) => `- ${item}`).join("\n") : "";
+  const conversation: AgentMessage[] = [{ role: "system", content: system + memoryContext }, ...messages];
+  let background = Promise.resolve();
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      let finished = false;
+      try {
+        for (const provider of ordered) {
+          let accumulated = "";
+          try {
+            send("meta", { model: provider.model, modelId: provider.id, label: provider.label });
+            let result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); });
+            let turns = 0;
+            while (result.toolCalls.length && turns < 3) {
+              conversation.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
+              for (const call of result.toolCalls) {
+                const output = await executeTool(call, memories);
+                conversation.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: output });
+                send("tool", { name: call.function.name });
+              }
+              accumulated = "";
+              result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); });
+              turns++;
+            }
+            if (result.toolCalls.length) throw new Error("Agent reached its tool-step limit.");
+            const reply = accumulated.trim();
+            if (!reply) throw new Error("The selected model returned an empty response.");
+            send("done", { model: provider.model, modelId: provider.id, toolsUsed: turns });
+            if (body.autoMemory !== false && auth && userId) {
+              const memoryProvider = provider;
+              const memoryUser = userId;
+              background = extractMemories(memoryProvider, auth.supabase, memoryUser, messages, reply);
+            }
+            finished = true;
+            break;
+          } catch (error) {
+            if (accumulated) throw error;
+            send("provider_fallback", { message: `${provider.label} unavailable; trying next provider.` });
+          }
+        }
+        if (!finished) send("error", { error: "All configured AI providers failed. Check provider limits and configuration." });
+      } catch (error) {
+        send("error", { error: error instanceof Error ? error.message : "The request failed." });
+      } finally {
+        controller.close();
+      }
+    }
+  });
+  after(async () => { await background; });
+  return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" } });
+}
