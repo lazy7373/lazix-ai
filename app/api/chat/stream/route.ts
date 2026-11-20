@@ -1,39 +1,18 @@
 import { after, NextRequest } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
+import { getModelProviders, type ModelProvider } from "@/lib/ai/providers";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
-type Provider = { id: string; label: string; baseUrl: string; apiKey: string; model: string };
+type Provider = ModelProvider;
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 type AgentMessage = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; name?: string };
 type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
 type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
 type StreamPacket = { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }> } }> };
-
-function providersFromEnv(): Provider[] {
-  const raw = process.env.MODEL_PROVIDERS_JSON;
-  if (raw) {
-    try {
-      const parsed: unknown = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        const result = parsed.flatMap((value, index) => {
-          if (!value || typeof value !== "object") return [];
-          const p = value as Record<string, unknown>;
-          if (typeof p.baseUrl !== "string" || typeof p.apiKey !== "string" || typeof p.model !== "string") return [];
-          return [{ id: typeof p.id === "string" ? p.id : `provider-${index + 1}`, label: typeof p.label === "string" ? p.label : p.model, baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model }];
-        });
-        if (result.length) return result;
-      }
-    } catch { /* Use legacy configuration below. */ }
-  }
-  return [
-    { id: "primary", label: process.env.MODEL_PRIMARY_LABEL || "Primary", baseUrl: process.env.MODEL_PRIMARY_BASE_URL || "", apiKey: process.env.MODEL_PRIMARY_API_KEY || "", model: process.env.MODEL_PRIMARY_NAME || "" },
-    { id: "fallback", label: process.env.MODEL_FALLBACK_LABEL || "Fallback", baseUrl: process.env.MODEL_FALLBACK_BASE_URL || "", apiKey: process.env.MODEL_FALLBACK_API_KEY || "", model: process.env.MODEL_FALLBACK_NAME || "" }
-  ].filter((p) => p.baseUrl && p.apiKey && p.model);
-}
 
 function userClient(request: NextRequest) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
@@ -195,7 +174,7 @@ export async function POST(request: NextRequest) {
   const messages = body.messages;
   if (messages.some((m) => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 12000)) return new Response(JSON.stringify({ error: "Message format is invalid." }), { status: 400 });
 
-  const providers = providersFromEnv();
+  const providers = await getModelProviders();
   if (!providers.length) return new Response(JSON.stringify({ error: "Connect an AI provider in Render environment settings first." }), { status: 503 });
   const selected = providers.findIndex((p) => p.id === body.modelId);
   const ordered = selected > 0 ? [providers[selected], ...providers.filter((_, i) => i !== selected)] : providers;
