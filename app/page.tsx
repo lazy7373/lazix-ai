@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/c
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: string; content: string; created_at: string };
 type ModelOption = { id: string; label: string; model: string };
+type IntegrationStatus = { webSearch: boolean; githubRead: boolean };
 type Thread = { id: string; title: string; messages: Message[]; updatedAt: number };
 const CHAT_KEY = "lazix-chat-v2";
 const AUTO_KEY = "lazix-auto-memory";
@@ -49,6 +50,7 @@ export default function Home() {
   const [model, setModel] = useState("");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
+  const [integrations, setIntegrations] = useState<IntegrationStatus>({ webSearch: false, githubRead: false });
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -73,10 +75,11 @@ export default function Home() {
       setAutoMemory(localStorage.getItem(AUTO_KEY) !== "false");
     } catch { localStorage.removeItem(CHAT_KEY); localStorage.removeItem(THREAD_KEY); }
     setReady(true);
-    fetch("/api/models").then((response) => response.json()).then((data: { models?: ModelOption[] }) => {
+    fetch("/api/models").then((response) => response.json()).then((data: { models?: ModelOption[]; integrations?: IntegrationStatus }) => {
       const available = Array.isArray(data.models) ? data.models : [];
       setModels(available);
       if (available.length) setSelectedModel(available[0].id);
+      if (data.integrations) setIntegrations(data.integrations);
     }).catch(() => setModels([]));
   }, []);
 
@@ -301,7 +304,7 @@ export default function Home() {
         </div>
         <button className={`nav-item ${memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(!memoryOpen); setSidebarOpen(false); }}><span>◈</span> Memory <span className="nav-count">{memories.length}</span></button>
         <div className="side-spacer" />
-        <div className="agent-status"><span className="online-dot" /><div><b>Agent engine</b><small>Ready for tasks</small></div></div>
+        <div className="agent-status"><span className="online-dot" /><div><b>Agent engine</b><small>{integrations.webSearch ? "Web research" : "Core tools"}{integrations.githubRead ? " · GitHub connected" : ""}</small></div></div>
         <div className="side-account">
           {session ? <><div className="avatar">{(session.user.email || "U").slice(0, 1).toUpperCase()}</div><div className="account-copy"><b>{session.user.email}</b><small>Personal workspace</small></div><button className="icon-button" title="Sign out" onClick={signOut}>↗</button></> :
             <div className="account-copy"><b>Guest workspace</b><small>Sign in to sync memory</small></div>}
