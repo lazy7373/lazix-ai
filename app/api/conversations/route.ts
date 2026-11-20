@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const ids = (conversations || []).map((item) => item.id);
   if (!ids.length) return NextResponse.json({ conversations: [] });
   const { data: messages, error: messageError } = await client.supabase.from("conversation_messages")
-    .select("id, conversation_id, role, content, created_at").eq("user_id", user.id).in("conversation_id", ids).order("created_at", { ascending: true });
+    .select("id, conversation_id, role, content, created_at").eq("user_id", user.id).in("conversation_id", ids).order("created_at", { ascending: true }).limit(3000);
   if (messageError) return NextResponse.json({ error: "Could not load cloud messages." }, { status: 500 });
   const result = (conversations || []).map((item) => ({
     ...item,
