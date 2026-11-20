@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 
 function getUserClient(request: NextRequest) {
-  const token = request.headers.get("authorization")?.replace(/^Bearer\\s+/i, "");
+  const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!token || !url || !key) return null;
