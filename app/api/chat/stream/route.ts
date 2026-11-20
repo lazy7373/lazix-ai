@@ -101,9 +101,9 @@ async function executeTool(call: ToolCall, memories: string[]) {
 async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void) {
   const headers = { "Content-Type": "application/json", Authorization: "Bearer " + provider.apiKey };
   const basePayload: Record<string, unknown> = { model: provider.model, messages, temperature: 0.65, max_tokens: 2048, stream: true };
-  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal: AbortSignal.timeout(30000) });
+  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal: AbortSignal.timeout(24000) });
   if ((response.status === 400 || response.status === 422) && toolSpecs.length) {
-    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal: AbortSignal.timeout(30000) });
+    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal: AbortSignal.timeout(24000) });
   }
   if (!response.ok) throw new Error("Provider returned HTTP " + response.status + ".");
   if (!response.body) throw new Error("Provider did not return a stream.");
@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
   const providers = await getModelProviders();
   if (!providers.length) return new Response(JSON.stringify({ error: "Connect an AI provider in Render environment settings first." }), { status: 503 });
   const selected = providers.findIndex((p) => p.id === body.modelId);
-  const ordered = selected > 0 ? [providers[selected], ...providers.filter((_, i) => i !== selected)] : providers;
+  const ordered = (selected > 0 ? [providers[selected], ...providers.filter((_, i) => i !== selected)] : providers).slice(0, 2);
   const auth = userClient(request);
   let userId: string | null = null;
   let memories: string[] = [];
