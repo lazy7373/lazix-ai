@@ -38,9 +38,9 @@ function userClient(request: NextRequest) {
 }
 
 function endpointFor(provider: Provider) {
-  const base = provider.baseUrl.replace(/\\/+$/, "");
+  const base = provider.baseUrl.replace(/\/+$/, "");
   if (base.endsWith("/chat/completions")) return base;
-  return /\\/(?:v1|openai|openai\\/v1)$/.test(base) ? base + "/chat/completions" : base + "/v1/chat/completions";
+  return /\/(?:v1|openai|openai\/v1)$/.test(base) ? base + "/chat/completions" : base + "/v1/chat/completions";
 }
 
 function calculate(input: string): number {
