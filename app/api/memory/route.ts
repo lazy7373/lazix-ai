@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
@@ -11,7 +11,7 @@ function getUserClient(request: NextRequest) {
   const supabase = createClient(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
-  });
+  }) as SupabaseClient<any>;
   return { supabase, token };
 }
 
