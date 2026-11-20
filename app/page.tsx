@@ -95,13 +95,13 @@ export default function Home() {
       if (activeThreadId) localStorage.setItem("lazix-active-thread", activeThreadId);
       if (messages.length) {
         const firstUser = messages.find((message) => message.role === "user")?.content || "New conversation";
+        const threadId = activeThreadId || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now()));
         setThreads((current) => {
-          const existing = current.find((thread) => thread.id === activeThreadId);
-          const id = activeThreadId || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now()));
-          const updated: Thread = { id, title: existing?.title || firstUser.slice(0, 42), messages, updatedAt: Date.now() };
-          const next = [updated, ...current.filter((thread) => thread.id !== id)].slice(0, 30);
+          const existing = current.find((thread) => thread.id === threadId);
+          const updated: Thread = { id: threadId, title: existing?.title || firstUser.slice(0, 42), messages, updatedAt: Date.now() };
+          const next = [updated, ...current.filter((thread) => thread.id !== threadId)].slice(0, 30);
           localStorage.setItem(THREAD_KEY, JSON.stringify(next));
-          if (!activeThreadId) { setActiveThreadId(id); localStorage.setItem("lazix-active-thread", id); }
+          if (!activeThreadId) { setActiveThreadId(threadId); localStorage.setItem("lazix-active-thread", threadId); }
           return next;
         });
       }
