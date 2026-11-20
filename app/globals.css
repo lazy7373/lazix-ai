@@ -6,3 +6,19 @@
 @media(max-width:760px){.sidebar{position:fixed;left:0;top:0;bottom:0;transform:translateX(-105%);transition:transform .22s ease;box-shadow:15px 0 50px #0008}.sidebar.sidebar-open{transform:translateX(0)}.mobile-scrim{display:block;position:fixed;inset:0;border:0;background:#0009;z-index:9}.mobile-menu{display:block}.main-header{padding:0 16px;gap:13px}.breadcrumb{flex:1}.secure-label{display:none}.header-right{gap:8px}.header-new{padding:8px 9px}.chat-layout{width:calc(100% - 22px);padding:29px 0 12px}.chat-intro{margin-left:5px;margin-bottom:17px}.chat-intro h1{font-size:38px}.conversation-panel{min-height:390px;border-radius:13px}.conversation-top{padding:0 12px}.message-feed{padding:17px 12px}.message-row{max-width:100%}.starter-grid{gap:7px}.starter-grid button{padding-left:8px}.starter-grid button>span{margin-right:5px}.message-composer{margin:0 8px 9px}.composer-tools>span{font-size:7px}.chat-footnote{font-size:7px}.memory-page{width:calc(100% - 30px);padding:38px 0}.memory-add{flex-direction:column}.memory-add .primary-button{min-height:39px}}
 @media(max-width:390px){.header-new span{display:none}.chat-intro h1{font-size:34px}.starter-grid button{font-size:9px}.starter-grid button>b{font-size:9px}.starter-grid button>span{width:20px;height:20px}.model-tag{font-size:7px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+
+/* Chat-style model controls */
+.model-picker-wrap{display:flex;align-items:center;gap:7px;min-width:0;max-width:58%;padding:5px 8px;border:1px solid #30394b;border-radius:8px;background:#101724}
+.model-live-dot{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:var(--mint);box-shadow:0 0 9px #70dfc277}
+.model-picker{min-width:0;max-width:100%;border:0;outline:0;background:transparent;color:#d9d7ff;font-size:10px;font-weight:600}
+.model-picker option{background:#111827;color:#edf0f7}
+.model-picker:disabled{opacity:.85}
+.model-used{display:none}
+.chat-layout{width:min(980px,calc(100% - 48px))}
+.chat-intro{transition:opacity .2s ease}
+.message-feed{padding-bottom:30px}
+.message-row{max-width:min(820px,94%)}
+.message-body p{font-size:13px;line-height:1.78}
+.message-composer{box-shadow:0 12px 35px #0005}
+@media(max-width:760px){.model-picker-wrap{max-width:58%;gap:5px;padding:5px 6px}.model-picker{font-size:9px}.chat-layout{width:calc(100% - 22px)}}
