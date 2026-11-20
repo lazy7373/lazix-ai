@@ -198,10 +198,21 @@ export async function POST(request: NextRequest) {
   const messages = body.messages.slice(-30);
   if (messages.some((m) => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 12000)) return new Response(JSON.stringify({ error: "Message format is invalid." }), { status: 400 });
 
-  const providers = await getModelProviders();
+  const providers = await getModelProviders(false);
   if (!providers.length) return new Response(JSON.stringify({ error: "Connect an AI provider in Render environment settings first." }), { status: 503 });
-  const selected = providers.findIndex((p) => p.id === body.modelId);
-  const ordered = (selected > 0 ? [providers[selected], ...providers.filter((_, i) => i !== selected)] : providers).slice(0, 2);
+  // The UI may offer models discovered from OpenRouter's catalog. Resolve those
+  // IDs against the configured OpenRouter credential without fetching the catalog
+  // again on every chat request.
+  const configuredPrimary = providers[0];
+  const selectedProvider = body.modelId?.startsWith("openrouter:") && configuredPrimary?.baseUrl.includes("openrouter.ai")
+    ? { ...configuredPrimary, id: body.modelId, model: body.modelId.slice("openrouter:".length), label: body.modelId.slice("openrouter:".length) }
+    : body.modelId === "openrouter-auto-free" && configuredPrimary?.baseUrl.includes("openrouter.ai")
+      ? { ...configuredPrimary, id: "openrouter-auto-free", model: "openrouter/free", label: "OpenRouter · Auto Free" }
+      : providers.find((provider) => provider.id === body.modelId);
+  const ordered = [
+    ...(selectedProvider ? [selectedProvider] : [providers[0]]),
+    ...providers.filter((provider) => provider.id !== selectedProvider?.id && provider.id !== providers[0]?.id)
+  ].slice(0, 2);
   const auth = userClient(request);
   let userId: string | null = null;
   let memories: string[] = [];
