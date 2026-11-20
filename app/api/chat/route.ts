@@ -27,7 +27,7 @@ function getUserClient(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!token || !url || !key) return null;
   const supabase = createClient<Database>(url, key, {
-    global: { headers: { Authorization: \`Bearer \${token}\` } },
+    global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
   });
   return { supabase, token };
@@ -95,34 +95,34 @@ async function runTool(call: ToolCall, memories: string[]): Promise<string> {
 
 async function askProvider(provider: Provider, messages: AgentMessage[], withTools: boolean): Promise<Completion> {
   const base = provider.baseUrl.replace(/\/+$/, "");
-  const endpoint = base.endsWith("/v1") ? \`\${base}/chat/completions\` : \`\${base}/v1/chat/completions\`;
+  const endpoint = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
   const payload: Record<string, unknown> = { model: provider.model, messages, temperature: 0.65 };
   if (withTools) { payload.tools = tools; payload.tool_choice = "auto"; }
   const response = await fetch(endpoint, {
-    method: "POST", headers: { "Content-Type": "application/json", Authorization: \`Bearer \${provider.apiKey}\` },
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
     body: JSON.stringify(payload), signal: AbortSignal.timeout(45000)
   });
-  if (!response.ok) throw new Error(\`Provider HTTP \${response.status}\`);
+  if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
   return await response.json() as Completion;
 }
 
 async function extractAndSaveMemories(provider: Provider, supabase: SupabaseClient<Database>, userId: string, messages: ChatMessage[], reply: string) {
   try {
-    const recent = messages.slice(-10).map((m) => \`\${m.role}: \${m.content}\`).join("\n");
+    const recent = messages.slice(-10).map((m) => `${m.role}: ${m.content}`).join("\n");
     const base = provider.baseUrl.replace(/\/+$/, "");
-    const endpoint = base.endsWith("/v1") ? \`\${base}/chat/completions\` : \`\${base}/v1/chat/completions\`;
+    const endpoint = base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
     const response = await fetch(endpoint, {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: \`Bearer \${provider.apiKey}\` },
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
       body: JSON.stringify({ model: provider.model, temperature: 0, messages: [
         { role: "system", content: "Extract at most 3 concise durable facts explicitly stated by the user: stable preferences, ongoing projects, goals, recurring constraints. Do not infer. Never save secrets, credentials, sensitive personal data or temporary states. Return only JSON: {\\"memories\\":[\\"fact\\"]}. Each under 300 characters." },
-        { role: "user", content: \`Conversation:\n\${recent}\n\nAssistant reply:\n\${reply}\` }
+        { role: "user", content: `Conversation:\n${recent}\n\nAssistant reply:\n${reply}` }
       ] }), signal: AbortSignal.timeout(12000)
     });
     if (!response.ok) return;
     const result = await response.json() as Completion;
     const raw = result.choices?.[0]?.message?.content;
     if (typeof raw !== "string") return;
-    const parsed = JSON.parse(raw.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`$/, "")) as { memories?: unknown[] };
+    const parsed = JSON.parse(raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "")) as { memories?: unknown[] };
     const candidates = Array.isArray(parsed.memories) ? parsed.memories.filter((item): item is string => typeof item === "string") : [];
     const { data: existing } = await supabase.from("memories").select("content").eq("user_id", userId).limit(60);
     const known = new Set((existing || []).map((row) => row.content.trim().toLowerCase()));
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
     memories = (data || []).map((row) => row.content);
   }
   const system = "You are LAZIX, a capable personal AI assistant. Be direct, warm, and useful. Use tools when they materially improve accuracy, not to appear busy. Never claim external actions you did not perform. You can calculate, check current UTC time, and search saved memory. You do not yet have permission to modify external accounts or repositories. Keep private reasoning private.";
-  const memoryContext = memories.length ? "\n\nSaved user memories (use only when relevant; current instructions take precedence):\n" + memories.map((item) => \`- \${item}\`).join("\n") : "";
+  const memoryContext = memories.length ? "\n\nSaved user memories (use only when relevant; current instructions take precedence):\n" + memories.map((item) => `- ${item}`).join("\n") : "";
   const conversation: AgentMessage[] = [{ role: "system", content: system + memoryContext }, ...messages];
 
   for (const provider of providers) {
