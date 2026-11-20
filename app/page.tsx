@@ -203,7 +203,7 @@ export default function Home() {
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
-        body: JSON.stringify({ messages: next, autoMemory, modelId: selectedModel || undefined }),
+        body: JSON.stringify({ messages: next.slice(-100), autoMemory, modelId: selectedModel || undefined }),
         signal: controller.signal
       });
       if (!response.ok) {
@@ -246,7 +246,7 @@ export default function Home() {
         void fetch("/api/conversations", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
-          body: JSON.stringify({ id: threadId, title, messages: [...next, { role: "assistant", content: assistantText }] })
+          body: JSON.stringify({ id: threadId, title, messages: [...next, { role: "assistant", content: assistantText }].slice(-100) })
         }).then(async (saved) => {
           if (!saved.ok) { const data = await saved.json().catch(() => ({})); setNotice(data.error || "Conversation is saved on this device; cloud sync needs setup."); }
         }).catch(() => setNotice("Conversation is saved on this device; cloud sync is unavailable."));
