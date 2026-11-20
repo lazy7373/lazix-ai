@@ -209,6 +209,8 @@ export default function Home() {
     if (!activeThreadId) setActiveThreadId(threadId);
     setMessages(next); setInput(""); setBusy(true); setNotice("");
     let assistantText = "";
+    let lastUiUpdate = 0;
+    let renderTimer: number | undefined;
     const controller = new AbortController();
     abortRef.current = controller;
     try {
@@ -238,7 +240,17 @@ export default function Home() {
         if (eventName === "meta") setModel(payload.label || payload.model || "LAZIX");
         if (eventName === "delta" && typeof payload.text === "string") {
           assistantText += payload.text;
-          setMessages([...next, { role: "assistant", content: assistantText }]);
+          const elapsed = Date.now() - lastUiUpdate;
+          if (elapsed >= 45) {
+            setMessages([...next, { role: "assistant", content: assistantText }]);
+            lastUiUpdate = Date.now();
+          } else if (renderTimer === undefined) {
+            renderTimer = window.setTimeout(() => {
+              setMessages([...next, { role: "assistant", content: assistantText }]);
+              lastUiUpdate = Date.now();
+              renderTimer = undefined;
+            }, 45 - elapsed);
+          }
         }
         if (eventName === "tool") setNotice("LAZIX is using " + (payload.name || "a tool") + "...");
         if (eventName === "done") setNotice("");
@@ -254,6 +266,8 @@ export default function Home() {
         for (const raw of events) handleEvent(raw);
       }
       if (buffer.trim()) handleEvent(buffer);
+      if (renderTimer !== undefined) window.clearTimeout(renderTimer);
+      setMessages([...next, { role: "assistant", content: assistantText }]);
       if (!assistantText.trim()) throw new Error("The model returned an empty response. Try another model.");
       if (session?.access_token) {
         const title = next.find((message) => message.role === "user")?.content.slice(0, 42) || "New conversation";
@@ -274,9 +288,10 @@ export default function Home() {
         }, 12000);
       }
     } catch (error) {
+      if (renderTimer !== undefined) window.clearTimeout(renderTimer);
       const message = error instanceof Error && error.name === "AbortError" ? "Generation stopped." : error instanceof Error ? error.message : "Something went wrong.";
       setMessages([...next, { role: "assistant", content: assistantText ? `${assistantText}\\n\\n[Connection interrupted: ${message}]` : message }]);
-    } finally { abortRef.current = null; setBusy(false); }
+    } finally { if (renderTimer !== undefined) window.clearTimeout(renderTimer); abortRef.current = null; setBusy(false); }
   }
 
   function stopGeneration() { abortRef.current?.abort(); }
