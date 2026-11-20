@@ -44,6 +44,7 @@ export default function Home() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     try {
@@ -158,11 +159,14 @@ export default function Home() {
     const next = [...messages, { role: "user" as const, content: text }];
     setMessages(next); setInput(""); setBusy(true); setNotice("");
     let assistantText = "";
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const response = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
-        body: JSON.stringify({ messages: next, autoMemory, modelId: selectedModel || undefined })
+        body: JSON.stringify({ messages: next, autoMemory, modelId: selectedModel || undefined }),
+        signal: controller.signal
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: "The request failed." }));
@@ -208,10 +212,12 @@ export default function Home() {
         }, 12000);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Something went wrong.";
+      const message = error instanceof Error && error.name === "AbortError" ? "Generation stopped." : error instanceof Error ? error.message : "Something went wrong.";
       setMessages([...next, { role: "assistant", content: assistantText ? `${assistantText}\\n\\n[Connection interrupted: ${message}]` : message }]);
-    } finally { setBusy(false); }
+    } finally { abortRef.current = null; setBusy(false); }
   }
+
+  function stopGeneration() { abortRef.current?.abort(); }
 
   function openThread(thread: Thread) {
     if (busy) return;
@@ -297,7 +303,7 @@ export default function Home() {
               </div>
               <form className="message-composer" onSubmit={(e) => sendMessage(e)}>
                 <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder="Message LAZIX..." rows={1} disabled={busy} aria-label="Message LAZIX" />
-                <div className="composer-tools"><span>↵ Enter to send · Shift + Enter for new line</span><button type="submit" disabled={busy || !input.trim()} aria-label="Send message">↑</button></div>
+                <div className="composer-tools"><span>↵ Enter to send · Shift + Enter for new line</span>{busy ? <button type="button" onClick={stopGeneration} aria-label="Stop generating">■</button> : <button type="submit" disabled={!input.trim()} aria-label="Send message">↑</button>}</div>
               </form>
             </div>
             <div className="chat-footnote"><span>✳</span> LAZIX CAN MAKE MISTAKES. CHECK IMPORTANT INFORMATION.</div>
