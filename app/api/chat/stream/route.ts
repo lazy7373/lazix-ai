@@ -100,7 +100,7 @@ async function executeTool(call: ToolCall, memories: string[]) {
     return matches.length ? matches.map((item) => item.content).join("\n") : "No matching saved memories.";
   }
   if (call.function.name === "github_read_file" && process.env.GITHUB_TOKEN && typeof args.repository === "string" && typeof args.path === "string") {
-    if (!/^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$/.test(args.repository) || args.path.startsWith("/") || args.path.split("/").includes("..")) return "Invalid repository or file path.";
+    if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(args.repository) || args.path.startsWith("/") || args.path.split("/").includes("..")) return "Invalid repository or file path.";
     const ref = typeof args.ref === "string" ? "?ref=" + encodeURIComponent(args.ref) : "";
     const filePath = args.path.split("/").map(encodeURIComponent).join("/");
     const response = await fetch("https://api.github.com/repos/" + args.repository + "/contents/" + filePath + ref, { headers: { Authorization: "Bearer " + process.env.GITHUB_TOKEN, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, signal: AbortSignal.timeout(12000) });
