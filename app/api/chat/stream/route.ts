@@ -83,7 +83,8 @@ const toolSpecs: ToolSpec[] = [
   { type: "function", function: { name: "calculator", description: "Calculate arithmetic exactly. Use for non-trivial calculations.", parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"], additionalProperties: false } } },
   { type: "function", function: { name: "get_current_datetime", description: "Get the current date and time.", parameters: { type: "object", properties: {}, additionalProperties: false } } },
   { type: "function", function: { name: "search_memory", description: "Find relevant facts from the signed-in user's permanent memories.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } },
-  ...(process.env.TAVILY_API_KEY ? [{ type: "function" as const, function: { name: "web_search", description: "Search the web for current information. Use this for recent facts, comparisons, and research. Return source URLs.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }] : [])
+  ...(process.env.TAVILY_API_KEY ? [{ type: "function" as const, function: { name: "web_search", description: "Search the web for current information. Use this for recent facts, comparisons, and research. Return source URLs.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }] : []),
+  ...(process.env.GITHUB_TOKEN ? [{ type: "function" as const, function: { name: "github_read_file", description: "Read a text file from a GitHub repository the configured token can access. Use only when the user asks about a repository.", parameters: { type: "object", properties: { repository: { type: "string", description: "owner/repository" }, path: { type: "string", description: "File path inside the repository" }, ref: { type: "string", description: "Optional branch or commit ref" } }, required: ["repository", "path"], additionalProperties: false } } }] : [])
 ];
 
 async function executeTool(call: ToolCall, memories: string[]) {
@@ -96,6 +97,17 @@ async function executeTool(call: ToolCall, memories: string[]) {
     const words = query.split(/\s+/).filter((word) => word.length > 2);
     const matches = memories.map((content) => ({ content, score: words.filter((word) => content.toLowerCase().includes(word)).length })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
     return matches.length ? matches.map((item) => item.content).join("\n") : "No matching saved memories.";
+  }
+  if (call.function.name === "github_read_file" && process.env.GITHUB_TOKEN && typeof args.repository === "string" && typeof args.path === "string") {
+    if (!/^[a-zA-Z0-9_.-]+\\/[a-zA-Z0-9_.-]+$/.test(args.repository) || args.path.startsWith("/") || args.path.split("/").includes("..")) return "Invalid repository or file path.";
+    const ref = typeof args.ref === "string" ? "?ref=" + encodeURIComponent(args.ref) : "";
+    const filePath = args.path.split("/").map(encodeURIComponent).join("/");
+    const response = await fetch("https://api.github.com/repos/" + args.repository + "/contents/" + filePath + ref, { headers: { Authorization: "Bearer " + process.env.GITHUB_TOKEN, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, signal: AbortSignal.timeout(12000) });
+    if (!response.ok) return "GitHub returned HTTP " + response.status + ". Check repository access and token permissions.";
+    const data = await response.json() as { type?: string; encoding?: string; content?: string; size?: number; path?: string };
+    if (data.type !== "file" || data.encoding !== "base64" || !data.content) return "That path is not a readable file.";
+    const decoded = Buffer.from(data.content, "base64").toString("utf8");
+    return "File: " + (data.path || args.path) + " (size: " + (data.size || decoded.length) + " bytes)\\n" + decoded.slice(0, 14000);
   }
   if (call.function.name === "web_search" && process.env.TAVILY_API_KEY && typeof args.query === "string") {
     const response = await fetch("https://api.tavily.com/search", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query: args.query.slice(0, 400), search_depth: "basic", max_results: 5, include_answer: false }), signal: AbortSignal.timeout(12000) });
