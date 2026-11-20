@@ -48,7 +48,10 @@ function apiEndpoint(baseUrl: string, resource: string) {
   return base.endsWith("/v1") ? `${base}/${resource}` : `${base}/v1/${resource}`;
 }
 
+let cachedCatalog: { expiresAt: number; providers: ModelProvider[] } | null = null;
+
 export async function getModelProviders(): Promise<ModelProvider[]> {
+  if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return cachedCatalog.providers;
   const configured = configuredList();
   if (process.env.MODEL_PROVIDERS_JSON || !configured.length || !configured[0].baseUrl.includes("openrouter.ai")) return configured;
 
@@ -97,8 +100,11 @@ export async function getModelProviders(): Promise<ModelProvider[]> {
         model: item.id
       });
     }
-    return discovered.length > 1 ? discovered : configured;
+    const result = discovered.length > 1 ? discovered : configured;
+    cachedCatalog = { providers: result, expiresAt: Date.now() + 5 * 60 * 1000 };
+    return result;
   } catch {
+    cachedCatalog = { providers: configured, expiresAt: Date.now() + 60 * 1000 };
     return configured;
   }
 }
