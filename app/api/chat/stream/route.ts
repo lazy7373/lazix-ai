@@ -59,15 +59,21 @@ function calculate(input: string): number {
   return Number(value.toPrecision(12));
 }
 
-const toolSpecs: ToolSpec[] = [
+const baseToolSpecs: ToolSpec[] = [
   { type: "function", function: { name: "calculator", description: "Calculate arithmetic exactly. Use for non-trivial calculations.", parameters: { type: "object", properties: { expression: { type: "string" } }, required: ["expression"], additionalProperties: false } } },
   { type: "function", function: { name: "get_current_datetime", description: "Get the current date and time.", parameters: { type: "object", properties: {}, additionalProperties: false } } },
-  { type: "function", function: { name: "search_memory", description: "Find relevant facts from the signed-in user's permanent memories.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } },
-  ...(process.env.TAVILY_API_KEY ? [{ type: "function" as const, function: { name: "web_search", description: "Search the web for current information. Use this for recent facts, comparisons, and research. Return source URLs.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }] : []),
-  ...(process.env.GITHUB_TOKEN ? [{ type: "function" as const, function: { name: "github_read_file", description: "Read a text file from a GitHub repository the configured token can access. Use only when the user asks about a repository.", parameters: { type: "object", properties: { repository: { type: "string", description: "owner/repository" }, path: { type: "string", description: "File path inside the repository" }, ref: { type: "string", description: "Optional branch or commit ref" } }, required: ["repository", "path"], additionalProperties: false } } }] : [])
+  { type: "function", function: { name: "search_memory", description: "Find relevant facts from the signed-in user's permanent memories.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }
 ];
 
-async function executeTool(call: ToolCall, memories: string[]) {
+function getToolSpecs(allowGitHub: boolean): ToolSpec[] {
+  return [
+    ...baseToolSpecs,
+    ...(process.env.TAVILY_API_KEY ? [{ type: "function" as const, function: { name: "web_search", description: "Search the web for current information. Use this for recent facts, comparisons, and research. Return source URLs.", parameters: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } } }] : []),
+    ...(allowGitHub && process.env.GITHUB_TOKEN ? [{ type: "function" as const, function: { name: "github_read_file", description: "Read a text file from the owner's configured GitHub account. Use only when the owner asks about a repository.", parameters: { type: "object", properties: { repository: { type: "string", description: "owner/repository" }, path: { type: "string", description: "File path inside the repository" }, ref: { type: "string", description: "Optional branch or commit ref" } }, required: ["repository", "path"], additionalProperties: false } } }] : [])
+  ];
+}
+
+async function executeTool(call: ToolCall, memories: string[], allowGitHub: boolean) {
   let args: Record<string, unknown>;
   try { args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>; } catch { return "Invalid tool arguments."; }
   if (call.function.name === "calculator") return typeof args.expression === "string" ? String(calculate(args.expression)) : "Expression must be text.";
@@ -78,7 +84,7 @@ async function executeTool(call: ToolCall, memories: string[]) {
     const matches = memories.map((content) => ({ content, score: words.filter((word) => content.toLowerCase().includes(word)).length })).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
     return matches.length ? matches.map((item) => item.content).join("\n") : "No matching saved memories.";
   }
-  if (call.function.name === "github_read_file" && process.env.GITHUB_TOKEN && typeof args.repository === "string" && typeof args.path === "string") {
+  if (call.function.name === "github_read_file" && allowGitHub && process.env.GITHUB_TOKEN && typeof args.repository === "string" && typeof args.path === "string") {
     if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(args.repository) || args.path.startsWith("/") || args.path.split("/").includes("..")) return "Invalid repository or file path.";
     const ref = typeof args.ref === "string" ? "?ref=" + encodeURIComponent(args.ref) : "";
     const filePath = args.path.split("/").map(encodeURIComponent).join("/");
@@ -98,12 +104,12 @@ async function executeTool(call: ToolCall, memories: string[]) {
   return "Tool unavailable.";
 }
 
-async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void, abortSignal: AbortSignal) {
+async function streamCompletion(provider: Provider, messages: AgentMessage[], toolsForRequest: ToolSpec[], onText: (text: string) => void, abortSignal: AbortSignal) {
   const signal = AbortSignal.any([abortSignal, AbortSignal.timeout(24000)]);
   const headers = { "Content-Type": "application/json", Authorization: "Bearer " + provider.apiKey };
   const basePayload: Record<string, unknown> = { model: provider.model, messages, temperature: 0.65, max_tokens: 2048, stream: true };
-  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal });
-  if ((response.status === 400 || response.status === 422) && toolSpecs.length) {
+  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolsForRequest, tool_choice: "auto" }), signal });
+  if ((response.status === 400 || response.status === 422) && toolsForRequest.length) {
     response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal });
   }
   if (!response.ok) throw new Error("Provider returned HTTP " + response.status + ".");
@@ -214,6 +220,8 @@ export async function POST(request: NextRequest) {
   const rankedMemories = memories.map((content, index) => ({ content, index, score: queryTerms.filter((term) => content.toLowerCase().includes(term)).length }));
   const relevantMemories = rankedMemories.filter((item) => item.score > 0).sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 12).map((item) => item.content);
   const memoryContext = relevantMemories.length ? "\n\nRelevant permanent memories (use only when relevant; current user instructions take precedence):\n" + relevantMemories.map((item) => "- " + item).join("\n") : "";
+  const allowGitHub = Boolean(process.env.GITHUB_TOKEN && process.env.LAZIX_OWNER_USER_ID && userId === process.env.LAZIX_OWNER_USER_ID);
+  const toolsForRequest = getToolSpecs(allowGitHub);
   const conversation: AgentMessage[] = [{ role: "system", content: system + memoryContext }, ...messages];
   let background = Promise.resolve();
   const encoder = new TextEncoder();
@@ -228,13 +236,13 @@ export async function POST(request: NextRequest) {
           let accumulated = "";
           try {
             send("meta", { model: provider.model, modelId: provider.id, label: provider.label });
-            let result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
+            let result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
             let turns = 0;
             while (result.toolCalls.length && turns < 3) {
               conversation.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
               for (const call of result.toolCalls) {
                 let output: string;
-                try { output = await executeTool(call, memories); }
+                try { output = await executeTool(call, memories, allowGitHub); }
                 catch (error) { output = error instanceof Error ? "Tool error: " + error.message : "Tool execution failed."; }
                 conversation.push({ role: "tool", tool_call_id: call.id, name: call.function.name, content: output });
                 send("tool", { name: call.function.name });
