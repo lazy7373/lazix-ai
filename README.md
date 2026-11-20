@@ -7,7 +7,7 @@ LAZIX is an independent, text-first personal AI workspace designed for Android t
 ## Current foundation
 
 - Responsive web chat interface.
-- Chat history saved in the current browser using local storage.
+- Chat history saved locally for guests and synced privately to Supabase for signed-in users.
 - Server-side model connection; API keys are never sent to the browser.
 - Multi-provider model routing with in-chat model selection and automatic fallback.
 - Token-by-token streaming chat with a bounded tool-calling agent loop.\n- Automatic memory extraction runs after the streamed answer, so it does not hold up the reply.\n- Optional web search (Tavily) and read-only GitHub file inspection tools.
@@ -26,7 +26,7 @@ npm run dev
 
 Open http://localhost:3000.
 
-To enable AI replies, fill the model environment variables in `.env.local`. Keep real API keys private and never commit them.
+To enable AI replies, fill the model environment variables in `.env.local`. Keep real API keys private and never commit them.\n\nFor a fresh Supabase project, run the SQL files in `supabase/migrations/` in filename order. Existing LAZIX projects should run the new `202611200002_create_conversations.sql` migration once to enable cloud conversation history.
 
 ## Model configuration
 
