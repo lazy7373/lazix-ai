@@ -32,7 +32,7 @@ To enable AI replies, fill the model environment variables in `.env.local`. Keep
 
 The server supports multiple OpenAI-compatible providers. For the existing simple setup, set `MODEL_PRIMARY_BASE_URL`, `MODEL_PRIMARY_API_KEY`, and `MODEL_PRIMARY_NAME`; optionally add the equivalent `MODEL_FALLBACK_*` variables.
 
-For an in-app model picker with several providers, set `MODEL_PROVIDERS_JSON` to a JSON array. Each entry has an `id`, `label`, `baseUrl`, `apiKey`, and `model`. Example (replace the placeholder key and model names with real values):
+When the primary base URL is OpenRouter, LAZIX automatically discovers currently free, tool-compatible text models and adds them to the in-app model picker (cached for five minutes). The same OpenRouter key is reused; no separate key is needed per model. The catalog can change as OpenRouter changes availability.\n\nFor custom provider/model lists, set `MODEL_PROVIDERS_JSON` to a JSON array. Each entry has an `id`, `label`, `baseUrl`, `apiKey`, and `model`. Example (replace the placeholder key and model names with real values):
 
 ```json
 [
