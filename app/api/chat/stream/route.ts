@@ -249,6 +249,7 @@ export async function POST(request: NextRequest) {
         if (!abortController.signal.aborted) controller.close();
       }
     }
+    },
     cancel() { abortController.abort(); }
   });
   after(async () => { await background; });
