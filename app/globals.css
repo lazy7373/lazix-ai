@@ -22,3 +22,26 @@
 .message-body p{font-size:13px;line-height:1.78}
 .message-composer{box-shadow:0 12px 35px #0005}
 @media(max-width:760px){.model-picker-wrap{max-width:58%;gap:5px;padding:5px 6px}.model-picker{font-size:9px}.chat-layout{width:calc(100% - 22px)}}
+
+
+/* Focused assistant workspace: open conversation canvas and bottom composer */
+.chat-layout{width:min(860px,calc(100% - 42px));padding:30px 0 14px}
+.conversation-panel{border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible}
+.conversation-top{height:48px;flex-basis:48px;padding:0 2px;border-bottom:1px solid #ffffff12}
+.message-feed{padding:25px 2px 28px;gap:25px}
+.message-row{max-width:100%;width:100%;gap:13px}
+.message-row.user{align-self:stretch}
+.message-body{max-width:760px}
+.message-body p{border:0;background:transparent;padding:0;border-radius:0;font-size:14px;line-height:1.8;color:#e5e9f2}
+.message-row.user .message-body p{background:transparent;border:0;padding:0}
+.message-avatar{border-radius:50%;width:30px;height:30px;flex-basis:30px}
+.message-row.assistant .message-avatar{background:linear-gradient(145deg,#8b7be7,#4d477d);color:#fff}
+.message-row.user .message-avatar{background:#334155;color:#fff}
+.message-composer{margin:0 0 5px;border:1px solid #3a4354;border-radius:18px;background:#171b24;padding:10px 12px;box-shadow:0 12px 35px #0004}
+.message-composer textarea{font-size:14px;min-height:42px;padding:9px 7px}
+.composer-tools{padding:2px 1px 0 7px}
+.composer-tools>span{font-size:9px}
+.composer-tools button{width:36px;height:36px;border-radius:50%;background:#f2f2f2;color:#171923;font-weight:700}
+.composer-tools button:hover{background:#d9d9e0;filter:none}
+.chat-footnote{padding-top:10px;text-transform:none;letter-spacing:0;font-size:9px}
+@media(max-width:760px){.chat-layout{width:calc(100% - 28px);padding:18px 0 10px}.conversation-top{padding:0 1px}.message-feed{padding:19px 1px 23px}.message-body p{font-size:13px}.message-composer{border-radius:16px;margin-bottom:4px}.chat-footnote{padding-top:7px}}
