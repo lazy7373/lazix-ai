@@ -1,0 +1,51 @@
+services:
+  lazix-model:
+    image: vllm/vllm-openai:latest
+    container_name: lazix-model
+    restart: unless-stopped
+    ipc: host
+    expose:
+      - "8000"
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - model-cache:/root/.cache/huggingface
+    command:
+      - --model
+      - ${LAZIX_MODEL:-Qwen/Qwen3-4B-Instruct-2507}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --api-key
+      - ${LAZIX_INFERENCE_TOKEN:?Set LAZIX_INFERENCE_TOKEN in .env}
+      - --max-model-len
+      - "8192"
+      - --gpu-memory-utilization
+      - "0.90"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  lazix-web:
+    build: .
+    container_name: lazix-web
+    restart: unless-stopped
+    depends_on:
+      - lazix-model
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      LAZIX_INFERENCE_URL: http://lazix-model:8000
+      LAZIX_MODEL: ${LAZIX_MODEL:-Qwen/Qwen3-4B-Instruct-2507}
+      LAZIX_INFERENCE_TOKEN: ${LAZIX_INFERENCE_TOKEN:?Set LAZIX_INFERENCE_TOKEN in .env}
+      LAZIX_ACCESS_USER: ${LAZIX_ACCESS_USER:?Set LAZIX_ACCESS_USER in .env}
+      LAZIX_ACCESS_PASSWORD: ${LAZIX_ACCESS_PASSWORD:?Set LAZIX_ACCESS_PASSWORD in .env}
+
+volumes:
+  model-cache:
