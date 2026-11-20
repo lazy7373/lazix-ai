@@ -56,6 +56,8 @@ export default function Home() {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const activeThreadIdRef = useRef<string | null>(null);
+  activeThreadIdRef.current = activeThreadId;
 
   useEffect(() => {
     try {
@@ -114,11 +116,11 @@ export default function Home() {
           localStorage.setItem(THREAD_KEY, JSON.stringify(merged));
           return merged;
         });
-        if (!activeThreadId && remote.length) { setActiveThreadId(remote[0].id); setMessages(remote[0].messages); }
+        if (!activeThreadIdRef.current && remote.length) { setActiveThreadId(remote[0].id); setMessages(remote[0].messages); }
       })
       .catch((error) => { if (active) setNotice(error.message || "Could not sync conversation history."); });
     return () => { active = false; };
-  }, [session?.access_token, activeThreadId]);
+  }, [session?.access_token]);
   useEffect(() => {
     if (!session?.access_token) { setMemories([]); return; }
     let active = true;
