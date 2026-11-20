@@ -114,7 +114,7 @@ async function extractAndSaveMemories(provider: Provider, supabase: SupabaseClie
     const response = await fetch(endpoint, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
       body: JSON.stringify({ model: provider.model, temperature: 0, messages: [
-        { role: "system", content: "Extract at most 3 concise durable facts explicitly stated by the user: stable preferences, ongoing projects, goals, recurring constraints. Do not infer. Never save secrets, credentials, sensitive personal data or temporary states. Return only JSON: {\\"memories\\":[\\"fact\\"]}. Each under 300 characters." },
+        { role: "system", content: "Extract at most 3 concise durable facts explicitly stated by the user: stable preferences, ongoing projects, goals, recurring constraints. Do not infer. Never save secrets, credentials, sensitive personal data or temporary states. Return only JSON: {\"memories\":[\"fact\"]}. Each under 300 characters." },
         { role: "user", content: `Conversation:\n${recent}\n\nAssistant reply:\n${reply}` }
       ] }), signal: AbortSignal.timeout(12000)
     });
