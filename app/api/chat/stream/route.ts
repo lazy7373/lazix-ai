@@ -170,8 +170,8 @@ async function extractMemories(provider: Provider, supabase: SupabaseClient<Data
 export async function POST(request: NextRequest) {
   let body: { messages?: ChatMessage[]; autoMemory?: boolean; modelId?: string };
   try { body = await request.json() as typeof body; } catch { return new Response(JSON.stringify({ error: "Invalid request body." }), { status: 400 }); }
-  if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 30) return new Response(JSON.stringify({ error: "Send between 1 and 30 messages." }), { status: 400 });
-  const messages = body.messages;
+  if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 100) return new Response(JSON.stringify({ error: "Send between 1 and 100 messages." }), { status: 400 });
+  const messages = body.messages.slice(-30);
   if (messages.some((m) => !m || !["user", "assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 12000)) return new Response(JSON.stringify({ error: "Message format is invalid." }), { status: 400 });
 
   const providers = await getModelProviders();
