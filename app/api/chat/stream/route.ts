@@ -209,9 +209,10 @@ export async function POST(request: NextRequest) {
     : body.modelId === "openrouter-auto-free" && configuredPrimary?.baseUrl.includes("openrouter.ai")
       ? { ...configuredPrimary, id: "openrouter-auto-free", model: "openrouter/free", label: "OpenRouter · Auto Free" }
       : providers.find((provider) => provider.id === body.modelId);
+  const firstProvider = selectedProvider || providers[0];
   const ordered = [
-    ...(selectedProvider ? [selectedProvider] : [providers[0]]),
-    ...providers.filter((provider) => provider.id !== selectedProvider?.id && provider.id !== providers[0]?.id)
+    firstProvider,
+    ...providers.filter((provider) => provider.id !== firstProvider.id)
   ].slice(0, 2);
   const auth = userClient(request);
   let userId: string | null = null;
