@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { Session } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
@@ -155,7 +156,7 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="LAZIX home"><span className="brand-mark">L</span><span>LAZIX</span></a>
+        <Link className="brand" href="/" aria-label="LAZIX home"><span className="brand-mark">L</span><span>LAZIX</span></Link>
         <span className="status"><i /> TEXT MODE</span>
       </header>
       <section className="workspace">
