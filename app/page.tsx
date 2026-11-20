@@ -94,7 +94,7 @@ export default function Home() {
       .then((data: { models?: ModelOption[]; integrations?: IntegrationStatus }) => {
         const available = Array.isArray(data.models) ? data.models : [];
         setModels(available);
-        if (available.length && !selectedModel) setSelectedModel(available[0].id);
+        if (available.length) setSelectedModel((current) => current || available[0].id);
         if (data.integrations) setIntegrations(data.integrations);
       })
       .catch(() => setModels([]));
