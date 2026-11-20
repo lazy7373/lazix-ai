@@ -11,6 +11,7 @@ type ToolCall = { id: string; type: "function"; function: { name: string; argume
 type AgentMessage = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; name?: string };
 type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
 type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
+type StreamPacket = { choices?: Array<{ delta?: { content?: string | null; tool_calls?: Array<{ index: number; id?: string; function?: { name?: string; arguments?: string } }> } }> };
 
 function providersFromEnv(): Provider[] {
   const raw = process.env.MODEL_PROVIDERS_JSON;
@@ -137,7 +138,7 @@ async function streamCompletion(provider: Provider, messages: AgentMessage[], on
       if (!line.startsWith("data:")) continue;
       const data = line.slice(5).trim();
       if (!data || data === "[DONE]") continue;
-      let packet: { choices?: { delta?: { content?: string | null; tool_calls?: { index: number; id?: string; type?: "function"; function?: { name?: string; arguments?: string } }[] }[] };
+      let packet: StreamPacket;
       try { packet = JSON.parse(data) as typeof packet; } catch { continue; }
       const delta = packet.choices?.[0]?.delta;
       if (typeof delta?.content === "string") { content += delta.content; onText(delta.content); }
