@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -6,19 +6,33 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
-type Provider = { baseUrl: string; apiKey: string; model: string; label: string };
+type Provider = { id: string; baseUrl: string; apiKey: string; model: string; label: string };
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 type AgentMessage = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; name?: string };
 type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
 type Tool = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
 
 function getProviders(): Provider[] {
+  const configured = process.env.MODEL_PROVIDERS_JSON;
+  if (configured) {
+    try {
+      const parsed: unknown = JSON.parse(configured);
+      if (Array.isArray(parsed)) {
+        const providers = parsed.flatMap((item, index) => {
+          if (!item || typeof item !== "object") return [];
+          const p = item as Record<string, unknown>;
+          if (typeof p.baseUrl !== "string" || typeof p.apiKey !== "string" || typeof p.model !== "string") return [];
+          return [{ id: typeof p.id === "string" ? p.id : `provider-${index + 1}`, baseUrl: p.baseUrl, apiKey: p.apiKey, model: p.model, label: typeof p.label === "string" ? p.label : p.model }];
+        });
+        if (providers.length) return providers;
+      }
+    } catch { /* Fall back to legacy environment variables. */ }
+  }
   const candidates = [
-    { baseUrl: process.env.MODEL_PRIMARY_BASE_URL, apiKey: process.env.MODEL_PRIMARY_API_KEY, model: process.env.MODEL_PRIMARY_NAME, label: "Primary model" },
-    { baseUrl: process.env.MODEL_FALLBACK_BASE_URL, apiKey: process.env.MODEL_FALLBACK_API_KEY, model: process.env.MODEL_FALLBACK_NAME, label: "Fallback model" }
+    { id: "primary", baseUrl: process.env.MODEL_PRIMARY_BASE_URL, apiKey: process.env.MODEL_PRIMARY_API_KEY, model: process.env.MODEL_PRIMARY_NAME, label: "Primary" },
+    { id: "fallback", baseUrl: process.env.MODEL_FALLBACK_BASE_URL, apiKey: process.env.MODEL_FALLBACK_API_KEY, model: process.env.MODEL_FALLBACK_NAME, label: "Fallback" }
   ];
-  return candidates.filter((p): p is Provider => Boolean(p.baseUrl && p.apiKey && p.model))
-    .map((p) => ({ baseUrl: p.baseUrl!, apiKey: p.apiKey!, model: p.model!, label: p.label }));
+  return candidates.filter((p): p is typeof p & { baseUrl: string; apiKey: string; model: string } => Boolean(p.baseUrl && p.apiKey && p.model));
 }
 
 function getUserClient(request: NextRequest) {
@@ -132,8 +146,8 @@ async function extractAndSaveMemories(provider: Provider, supabase: SupabaseClie
 }
 
 export async function POST(request: NextRequest) {
-  let body: { messages?: ChatMessage[]; autoMemory?: boolean };
-  try { body = await request.json() as { messages?: ChatMessage[]; autoMemory?: boolean }; }
+  let body: { messages?: ChatMessage[]; autoMemory?: boolean; modelId?: string };
+  try { body = await request.json() as { messages?: ChatMessage[]; autoMemory?: boolean; modelId?: string }; }
   catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
   if (!Array.isArray(body.messages) || !body.messages.length) return NextResponse.json({ error: "Add a message first." }, { status: 400 });
   const messages = body.messages.slice(-30);
@@ -142,6 +156,8 @@ export async function POST(request: NextRequest) {
 
   const providers = getProviders();
   if (!providers.length) return NextResponse.json({ error: "Connect an AI provider in Render environment settings first." }, { status: 503 });
+  const selectedIndex = providers.findIndex((provider) => provider.id === body.modelId);
+  const orderedProviders = selectedIndex > 0 ? [providers[selectedIndex], ...providers.filter((_, index) => index !== selectedIndex)] : providers;
   const auth = getUserClient(request);
   let userId: string | null = null;
   if (auth) {
@@ -157,7 +173,7 @@ export async function POST(request: NextRequest) {
   const memoryContext = memories.length ? "\n\nSaved user memories (use only when relevant; current instructions take precedence):\n" + memories.map((item) => `- ${item}`).join("\n") : "";
   const conversation: AgentMessage[] = [{ role: "system", content: system + memoryContext }, ...messages];
 
-  for (const provider of providers) {
+  for (const provider of orderedProviders) {
     try {
       let result: Completion;
       try { result = await askProvider(provider, conversation, true); }
@@ -175,8 +191,10 @@ export async function POST(request: NextRequest) {
       }
       const reply = typeof message?.content === "string" ? message.content.trim() : "";
       if (!reply) continue;
-      if (body.autoMemory !== false && auth && userId) await extractAndSaveMemories(provider, auth.supabase, userId, messages, reply);
-      return NextResponse.json({ reply, model: provider.model, toolsUsed: turns });
+      if (body.autoMemory !== false && auth && userId) {
+        after(async () => { await extractAndSaveMemories(provider, auth.supabase, userId as string, messages, reply); });
+      }
+      return NextResponse.json({ reply, model: provider.model, modelId: provider.id, toolsUsed: turns });
     } catch { /* Try configured fallback provider. */ }
   }
   return NextResponse.json({ error: "All configured AI providers are unavailable. Check settings or try again." }, { status: 502 });
