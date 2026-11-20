@@ -7,8 +7,10 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/c
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: string; content: string; created_at: string };
 type ModelOption = { id: string; label: string; model: string };
+type Thread = { id: string; title: string; messages: Message[]; updatedAt: number };
 const CHAT_KEY = "lazix-chat-v2";
 const AUTO_KEY = "lazix-auto-memory";
+const THREAD_KEY = "lazix-threads-v1";
 const supabase = getSupabaseBrowserClient();
 
 const starters = [
@@ -38,15 +40,28 @@ export default function Home() {
   const [model, setModel] = useState("");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(CHAT_KEY);
-      if (saved) setMessages(JSON.parse(saved) as Message[]);
+      const savedThreads = localStorage.getItem(THREAD_KEY);
+      if (savedThreads) {
+        const parsed = JSON.parse(savedThreads) as Thread[];
+        if (Array.isArray(parsed)) {
+          setThreads(parsed);
+          const activeId = localStorage.getItem("lazix-active-thread");
+          const active = parsed.find((thread) => thread.id === activeId) || [...parsed].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+          if (active) { setActiveThreadId(active.id); setMessages(active.messages); }
+        }
+      } else {
+        const saved = localStorage.getItem(CHAT_KEY);
+        if (saved) setMessages(JSON.parse(saved) as Message[]);
+      }
       setAutoMemory(localStorage.getItem(AUTO_KEY) !== "false");
-    } catch { localStorage.removeItem(CHAT_KEY); }
+    } catch { localStorage.removeItem(CHAT_KEY); localStorage.removeItem(THREAD_KEY); }
     setReady(true);
     fetch("/api/models").then((response) => response.json()).then((data: { models?: ModelOption[] }) => {
       const available = Array.isArray(data.models) ? data.models : [];
@@ -74,9 +89,24 @@ export default function Home() {
   }, [session?.access_token]);
 
   useEffect(() => {
-    if (ready) localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+    if (ready) {
+      localStorage.setItem(CHAT_KEY, JSON.stringify(messages));
+      if (activeThreadId) localStorage.setItem("lazix-active-thread", activeThreadId);
+      if (messages.length) {
+        const firstUser = messages.find((message) => message.role === "user")?.content || "New conversation";
+        setThreads((current) => {
+          const existing = current.find((thread) => thread.id === activeThreadId);
+          const id = activeThreadId || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now()));
+          const updated: Thread = { id, title: existing?.title || firstUser.slice(0, 42), messages, updatedAt: Date.now() };
+          const next = [updated, ...current.filter((thread) => thread.id !== id)].slice(0, 30);
+          localStorage.setItem(THREAD_KEY, JSON.stringify(next));
+          if (!activeThreadId) { setActiveThreadId(id); localStorage.setItem("lazix-active-thread", id); }
+          return next;
+        });
+      }
+    }
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, ready]);
+  }, [messages, ready, activeThreadId]);
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -183,9 +213,24 @@ export default function Home() {
     } finally { setBusy(false); }
   }
 
+  function openThread(thread: Thread) {
+    if (busy) return;
+    setActiveThreadId(thread.id);
+    localStorage.setItem("lazix-active-thread", thread.id);
+    setMessages(thread.messages);
+    setMemoryOpen(false);
+    setSidebarOpen(false);
+  }
+
   function newChat() {
     if (busy) return;
-    setMessages([]); localStorage.removeItem(CHAT_KEY); setSidebarOpen(false); inputRef.current?.focus();
+    setMessages([]);
+    setActiveThreadId(null);
+    localStorage.removeItem(CHAT_KEY);
+    localStorage.removeItem("lazix-active-thread");
+    setSidebarOpen(false);
+    setMemoryOpen(false);
+    inputRef.current?.focus();
   }
 
   return (
@@ -196,6 +241,10 @@ export default function Home() {
         <button className="new-chat" onClick={newChat}><span>＋</span> New conversation</button>
         <div className="side-label">WORKSPACE</div>
         <button className={`nav-item ${!memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(false); setSidebarOpen(false); }}><span>◫</span> Chat</button>
+        <div className="side-label thread-heading">RECENT</div>
+        <div className="thread-list">
+          {threads.slice(0, 18).map((thread) => <button key={thread.id} className={"thread-item " + (thread.id === activeThreadId ? "thread-active" : "")} onClick={() => openThread(thread)} title={thread.title}><span>▤</span><b>{thread.title}</b></button>)}
+        </div>
         <button className={`nav-item ${memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(!memoryOpen); setSidebarOpen(false); }}><span>◈</span> Memory <span className="nav-count">{memories.length}</span></button>
         <div className="side-spacer" />
         <div className="agent-status"><span className="online-dot" /><div><b>Agent engine</b><small>Ready for tasks</small></div></div>
