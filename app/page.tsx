@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 type Message = { role: "user" | "assistant"; content: string };
 const STORAGE_KEY = "lazix-local-chat-v1";
@@ -124,7 +125,7 @@ export default function Home() {
   return (
     <main className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="/" aria-label="LAZIX home"><span className="brand-mark">L</span><span>LAZIX</span></a>
+        <Link className="brand" href="/" aria-label="LAZIX home"><span className="brand-mark">L</span><span>LAZIX</span></Link>
         <button className="new-chat" onClick={newChat}><span>＋</span> New chat</button>
         <div className="sidebar-caption">YOUR SPACE</div>
         <div className="sidebar-note"><span className="status-dot" /> Private chat session</div>
