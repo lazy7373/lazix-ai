@@ -98,12 +98,13 @@ async function executeTool(call: ToolCall, memories: string[]) {
   return "Tool unavailable.";
 }
 
-async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void) {
+async function streamCompletion(provider: Provider, messages: AgentMessage[], onText: (text: string) => void, abortSignal: AbortSignal) {
+  const signal = AbortSignal.any([abortSignal, AbortSignal.timeout(24000)]);
   const headers = { "Content-Type": "application/json", Authorization: "Bearer " + provider.apiKey };
   const basePayload: Record<string, unknown> = { model: provider.model, messages, temperature: 0.65, max_tokens: 2048, stream: true };
-  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal: AbortSignal.timeout(24000) });
+  let response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify({ ...basePayload, tools: toolSpecs, tool_choice: "auto" }), signal });
   if ((response.status === 400 || response.status === 422) && toolSpecs.length) {
-    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal: AbortSignal.timeout(24000) });
+    response = await fetch(endpointFor(provider), { method: "POST", headers, body: JSON.stringify(basePayload), signal });
   }
   if (!response.ok) throw new Error("Provider returned HTTP " + response.status + ".");
   if (!response.body) throw new Error("Provider did not return a stream.");
@@ -199,16 +200,18 @@ export async function POST(request: NextRequest) {
   const conversation: AgentMessage[] = [{ role: "system", content: system + memoryContext }, ...messages];
   let background = Promise.resolve();
   const encoder = new TextEncoder();
+  const abortController = new AbortController();
+  request.signal.addEventListener("abort", () => abortController.abort(), { once: true });
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: string, data: unknown) => controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      const send = (event: string, data: unknown) => { if (!abortController.signal.aborted) controller.enqueue(encoder.encode("event: " + event + "\ndata: " + JSON.stringify(data) + "\n\n")); };
       let finished = false;
       try {
         for (const provider of ordered) {
           let accumulated = "";
           try {
             send("meta", { model: provider.model, modelId: provider.id, label: provider.label });
-            let result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); });
+            let result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
             let turns = 0;
             while (result.toolCalls.length && turns < 3) {
               conversation.push({ role: "assistant", content: result.content, tool_calls: result.toolCalls });
@@ -220,7 +223,7 @@ export async function POST(request: NextRequest) {
                 send("tool", { name: call.function.name });
               }
               accumulated = "";
-              result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); });
+              result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
               turns++;
             }
             if (result.toolCalls.length) throw new Error("Agent reached its tool-step limit.");
@@ -243,9 +246,10 @@ export async function POST(request: NextRequest) {
       } catch (error) {
         send("error", { error: error instanceof Error ? error.message : "The request failed." });
       } finally {
-        controller.close();
+        if (!abortController.signal.aborted) controller.close();
       }
     }
+    cancel() { abortController.abort(); }
   });
   after(async () => { await background; });
   return new Response(stream, { headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" } });
