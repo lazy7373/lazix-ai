@@ -10,7 +10,7 @@ LAZIX is an independent, text-first personal AI workspace designed for Android t
 - Chat history saved locally for guests and synced privately to Supabase for signed-in users.
 - Server-side model connection; API keys are never sent to the browser.
 - Multi-provider model routing with in-chat model selection and automatic fallback.
-- Token-by-token streaming chat with a bounded tool-calling agent loop.\n- Automatic memory extraction runs after the streamed answer, so it does not hold up the reply.\n- Optional web search (Tavily) and read-only GitHub file inspection tools.
+- Token-by-token streaming chat with a bounded tool-calling agent loop.\n- Automatic memory capture runs after the answer: explicit “remember that…” facts are saved directly, while AI-assisted extraction runs periodically to reduce extra model usage.\n- Optional web search (Tavily) and read-only GitHub file inspection tools.
 - Installable-web-app manifest foundation.
 - No voice features and no dependency on OmniRoute.
 
