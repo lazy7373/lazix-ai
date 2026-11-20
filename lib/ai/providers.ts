@@ -104,7 +104,7 @@ export async function getModelProviders(discoverCatalog = true): Promise<ModelPr
       baseUrl: primary.baseUrl,
       apiKey: primary.apiKey,
       model: "openrouter/free"
-    }];
+    }, ...configured];
     for (const item of freeToolModels.slice(0, 12)) {
       if (!item.id || discovered.some((provider) => provider.model === item.id)) continue;
       discovered.push({
