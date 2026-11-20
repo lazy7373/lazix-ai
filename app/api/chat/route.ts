@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
 
@@ -20,16 +21,16 @@ function getUserClient(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!token || !url || !key) return null;
-  const supabase = createClient(url, key, {
+  const supabase = createClient<Database>(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
-  }) as SupabaseClient<any>;
+  });
   return { supabase, token };
 }
 
 async function extractAndSaveMemories(
   provider: Provider,
-  supabase: SupabaseClient<any>,
+  supabase: SupabaseClient<Database>,
   userId: string,
   messages: ChatMessage[],
   reply: string
