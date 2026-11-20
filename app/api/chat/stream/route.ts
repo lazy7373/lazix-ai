@@ -10,7 +10,7 @@ type Provider = { id: string; label: string; baseUrl: string; apiKey: string; mo
 type ToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
 type AgentMessage = { role: string; content?: string | null; tool_calls?: ToolCall[]; tool_call_id?: string; name?: string };
 type ToolSpec = { type: "function"; function: { name: string; description: string; parameters: Record<string, unknown> } };
-type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] }[] } };
+type Completion = { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
 
 function providersFromEnv(): Provider[] {
   const raw = process.env.MODEL_PROVIDERS_JSON;
