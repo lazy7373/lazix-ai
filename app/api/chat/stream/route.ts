@@ -145,6 +145,13 @@ async function streamCompletion(provider: Provider, messages: AgentMessage[], on
   return { content, toolCalls: [...toolMap.values()] };
 }
 
+function isSafeMemoryFact(fact: string) {
+  return fact.length > 0 && fact.length <= 250 &&
+    !/(password|passcode|api[ _-]?key|token|secret|otp|one[- ]time code|credit card|cvv|ssn)/i.test(fact) &&
+    !/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i.test(fact) &&
+    !/\\+?\\d[\\d\\s().-]{8,}\\d/.test(fact);
+}
+
 async function extractMemories(provider: Provider, supabase: SupabaseClient<Database>, userId: string, messages: ChatMessage[], reply: string) {
   try {
     const recent = messages.slice(-8).map((m) => `${m.role}: ${m.content}`).join("\n");
@@ -163,7 +170,7 @@ async function extractMemories(provider: Provider, supabase: SupabaseClient<Data
     const candidates = Array.isArray(parsed.memories) ? parsed.memories.filter((item): item is string => typeof item === "string") : [];
     const { data: existing } = await supabase.from("memories").select("content").eq("user_id", userId).limit(100);
     const known = new Set((existing || []).map((row) => row.content.trim().toLowerCase()));
-    const fresh = [...new Set(candidates.map((item) => item.trim()).filter((item) => item.length > 0 && item.length <= 250 && !known.has(item.toLowerCase())))].slice(0, 2);
+    const fresh = [...new Set(candidates.map((item) => item.trim()).filter((item) => isSafeMemoryFact(item) && !known.has(item.toLowerCase())))].slice(0, 2);
     if (fresh.length) await supabase.from("memories").insert(fresh.map((content) => ({ user_id: userId, content })));
   } catch { /* Background memory is best effort and never blocks the answer. */ }
 }
@@ -173,7 +180,7 @@ async function saveExplicitMemory(supabase: SupabaseClient<Database>, userId: st
   if (!latest || latest.role !== "user") return;
   const match = latest.content.match(/^\s*(?:please\s+)?remember(?:\s+that)?\s*[:,-]?\s*(.+)$/i);
   const fact = match?.[1]?.trim();
-  if (!fact || fact.length > 250 || /(password|passcode|api[ _-]?key|token|secret|otp|one[- ]time code|credit card|cvv|ssn)/i.test(fact)) return;
+  if (!fact || !isSafeMemoryFact(fact)) return;
   const { data: existing } = await supabase.from("memories").select("id").eq("user_id", userId).eq("content", fact).limit(1);
   if (!existing?.length) await supabase.from("memories").insert({ user_id: userId, content: fact });
 }
