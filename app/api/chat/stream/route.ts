@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
                 send("tool", { name: call.function.name });
               }
               accumulated = "";
-              result = await streamCompletion(provider, conversation, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
+              result = await streamCompletion(provider, conversation, toolsForRequest, (chunk) => { accumulated += chunk; send("delta", { text: chunk }); }, abortController.signal);
               turns++;
             }
             if (result.toolCalls.length) throw new Error("Agent reached its tool-step limit.");
