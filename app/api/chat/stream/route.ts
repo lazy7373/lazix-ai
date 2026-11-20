@@ -140,6 +140,7 @@ async function streamCompletion(provider: Provider, messages: AgentMessage[], on
       buffer = events.pop() || "";
       for (const event of events) consume(event);
     }
+    buffer += decoder.decode();
     if (buffer.trim()) consume(buffer);
   } finally { reader.releaseLock(); }
   return { content, toolCalls: [...toolMap.values()] };
