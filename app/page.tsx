@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/c
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: string; content: string; created_at: string };
 const STORAGE_KEY = "lazix-chat-v1";
+const AUTO_MEMORY_KEY = "lazix-auto-memory";
 const supabase = getSupabaseBrowserClient();
 
 export default function Home() {
@@ -24,6 +25,7 @@ export default function Home() {
   const [authBusy, setAuthBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [memoryBusy, setMemoryBusy] = useState(false);
+  const [autoMemory, setAutoMemory] = useState(true);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function Home() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) setMessages(JSON.parse(saved) as Message[]);
     } catch { localStorage.removeItem(STORAGE_KEY); }
+    setAutoMemory(localStorage.getItem(AUTO_MEMORY_KEY) !== "false");
     setReady(true);
   }, []);
 
@@ -136,11 +139,19 @@ export default function Home() {
           "Content-Type": "application/json",
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
         },
-        body: JSON.stringify({ messages: next })
+        body: JSON.stringify({ messages: next, autoMemory })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "The request failed.");
       setMessages([...next, { role: "assistant", content: data.reply }]);
+      if (session?.access_token && autoMemory) {
+        window.setTimeout(async () => {
+          try {
+            const memoryResponse = await fetch("/api/memory", { headers: { Authorization: `Bearer ${session.access_token}` } });
+            if (memoryResponse.ok) { const memoryData = await memoryResponse.json(); setMemories(memoryData.memories || []); }
+          } catch { /* Memory refresh is best-effort. */ }
+        }, 1000);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Something went wrong.";
       setMessages([...next, { role: "assistant", content: message }]);
@@ -167,7 +178,7 @@ export default function Home() {
         </div>
 
         <section className="memory-card">
-          <div className="memory-title"><div><strong>Permanent memory</strong><small>One memory shared across every AI model.</small></div>
+          <div className="memory-title"><div><strong>Permanent memory</strong><small>One memory shared across every AI model.</small></div><label className="auto-memory-control"><input type="checkbox" checked={autoMemory} onChange={(event) => { setAutoMemory(event.target.checked); localStorage.setItem(AUTO_MEMORY_KEY, String(event.target.checked)); }} /> Auto-save</label>
             {session && <button className="clear-button" onClick={signOut}>Sign out</button>}
           </div>
           {!isSupabaseConfigured() ? (
