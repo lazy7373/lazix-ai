@@ -6,6 +6,7 @@ import { getSupabaseBrowserClient, isSupabaseConfigured } from "@/lib/supabase/c
 
 type Message = { role: "user" | "assistant"; content: string };
 type Memory = { id: string; content: string; created_at: string };
+type ModelOption = { id: string; label: string; model: string };
 const CHAT_KEY = "lazix-chat-v2";
 const AUTO_KEY = "lazix-auto-memory";
 const supabase = getSupabaseBrowserClient();
@@ -35,6 +36,8 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [model, setModel] = useState("");
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,6 +48,11 @@ export default function Home() {
       setAutoMemory(localStorage.getItem(AUTO_KEY) !== "false");
     } catch { localStorage.removeItem(CHAT_KEY); }
     setReady(true);
+    fetch("/api/models").then((response) => response.json()).then((data: { models?: ModelOption[] }) => {
+      const available = Array.isArray(data.models) ? data.models : [];
+      setModels(available);
+      if (available.length) setSelectedModel(available[0].id);
+    }).catch(() => setModels([]));
   }, []);
 
   useEffect(() => {
@@ -123,7 +131,7 @@ export default function Home() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
-        body: JSON.stringify({ messages: next, autoMemory })
+        body: JSON.stringify({ messages: next, autoMemory, modelId: selectedModel || undefined })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "The request failed.");
@@ -197,7 +205,7 @@ export default function Home() {
               <p>Think clearly. Build boldly. Let’s get things moving.</p>
             </div>
             <div className="conversation-panel">
-              <div className="conversation-top"><div><span className="live-indicator" /><b>LAZIX</b><small>Personal AI assistant</small></div><span className="model-tag">{model ? model : "MULTI-MODEL READY"}</span></div>
+              <div className="conversation-top"><div><span className="live-indicator" /><b>LAZIX</b><small>Personal AI assistant</small></div><div className="model-picker-wrap"><span className="model-live-dot" /><select className="model-picker" aria-label="Choose AI model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy || models.length < 2}>{models.length ? models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>) : <option value="">Connect a model</option>}</select>{model && <span className="model-used">{model}</span>}</div></div>
               <div className="message-feed" aria-live="polite">
                 {!messages.length && <div className="welcome-state"><div className="welcome-orb"><span>✳</span></div><h2>What’s on your mind?</h2><p>Ask anything. Start building. Figure it out together.</p><div className="starter-grid">{starters.map((item) => <button key={item.title} onClick={() => sendMessage(undefined, item.prompt)}><span>{item.icon}</span><b>{item.title}</b><i>↗</i></button>)}</div></div>}
                 {messages.map((message, index) => <article className={`message-row ${message.role}`} key={index}><div className="message-avatar">{message.role === "user" ? "Y" : "L"}</div><div className="message-body"><div className="message-meta">{message.role === "user" ? "YOU" : "LAZIX"}<span>{message.role === "assistant" ? "✳" : ""}</span></div><p>{message.content}</p></div></article>)}
