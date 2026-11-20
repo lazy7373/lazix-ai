@@ -10,7 +10,7 @@ LAZIX is an independent, text-first personal AI workspace designed for Android t
 - Chat history saved in the current browser using local storage.
 - Server-side model connection; API keys are never sent to the browser.
 - Multi-provider model routing with in-chat model selection and automatic fallback.
-- Automatic memory extraction runs after the chat response, so it does not hold up the reply.
+- Token-by-token streaming chat with a bounded tool-calling agent loop.\n- Automatic memory extraction runs after the streamed answer, so it does not hold up the reply.\n- Optional web search (Tavily) and read-only GitHub file inspection tools.
 - Installable-web-app manifest foundation.
 - No voice features and no dependency on OmniRoute.
 
@@ -55,7 +55,7 @@ For an in-app model picker with several providers, set `MODEL_PROVIDERS_JSON` to
 
 When `MODEL_PROVIDERS_JSON` is set, it takes precedence over the legacy primary/fallback variables. The selected model is tried first; other configured providers are automatic fallbacks. API keys remain server-side and are never returned by the model-list endpoint.
 
-Free provider plans may have usage limits and may require account/API keys. LAZIX does not promise unlimited free inference.
+Free provider plans may have usage limits and may require account/API keys. LAZIX does not promise unlimited free inference.\n\n### Optional agent integrations\n\n- `TAVILY_API_KEY`: enables the `web_search` tool for current web research and source URLs.\n- `GITHUB_TOKEN`: enables read-only access to files in repositories that token can read. Use a fine-grained token with **Contents: Read-only** and only the repositories LAZIX needs. Never expose this token in client-side code.\n\nThe agent exposes only integrations whose server-side credentials are configured. GitHub write access is intentionally not enabled yet; repository edits should be implemented with explicit approval and reviewable branches.
 
 ## Roadmap
 
@@ -73,4 +73,4 @@ Free provider plans may have usage limits and may require account/API keys. LAZI
 
 ## Project status
 
-Early foundation — not yet a complete autonomous assistant.
+Active rebuild — streaming chat, multi-provider routing, persistent memory and optional research/repository tools are being integrated. It is not yet a fully autonomous assistant.
