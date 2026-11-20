@@ -143,7 +143,7 @@ export default function Home() {
             const r = await fetch("/api/memory", { headers: { Authorization: `Bearer ${session.access_token}` } });
             if (r.ok) { const d = await r.json(); setMemories(d.memories || []); }
           } catch { /* best effort */ }
-        }, 1300);
+        }, 15000);
       }
     } catch (error) { setMessages([...next, { role: "assistant", content: error instanceof Error ? error.message : "Something went wrong." }]); }
     finally { setBusy(false); }
@@ -199,11 +199,11 @@ export default function Home() {
           </div>
         ) : (
           <div className="chat-layout">
-            <div className="chat-intro">
+            {!messages.length && <div className="chat-intro">
               <div className="page-kicker"><span className="sparkle">✳</span> YOUR PERSONAL AI</div>
-              <h1>{messages.length ? "Let's make progress." : <>A little more<br /><em>possibility.</em></>}</h1>
+              <h1>A little more<br /><em>possibility.</em></h1>
               <p>Think clearly. Build boldly. Let’s get things moving.</p>
-            </div>
+            </div>}
             <div className="conversation-panel">
               <div className="conversation-top"><div><span className="live-indicator" /><b>LAZIX</b><small>Personal AI assistant</small></div><div className="model-picker-wrap"><span className="model-live-dot" /><select className="model-picker" aria-label="Choose AI model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy || models.length < 2}>{models.length ? models.map((item) => <option key={item.id} value={item.id}>{item.label}</option>) : <option value="">Connect a model</option>}</select>{model && <span className="model-used">{model}</span>}</div></div>
               <div className="message-feed" aria-live="polite">
