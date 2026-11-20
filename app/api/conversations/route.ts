@@ -51,12 +51,18 @@ export async function POST(request: NextRequest) {
   if (conversationId) {
     const { data: existing, error: lookupError } = await client.supabase.from("conversations").select("id")
       .eq("id", conversationId).eq("user_id", user.id).maybeSingle();
-    if (lookupError || !existing) return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
-    const { error } = await client.supabase.from("conversations").update({ title, updated_at: new Date().toISOString() })
-      .eq("id", conversationId).eq("user_id", user.id);
-    if (error) return NextResponse.json({ error: "Could not update conversation." }, { status: 500 });
-    const { error: deleteError } = await client.supabase.from("conversation_messages").delete().eq("conversation_id", conversationId).eq("user_id", user.id);
-    if (deleteError) return NextResponse.json({ error: "Could not replace conversation messages." }, { status: 500 });
+    if (lookupError) return NextResponse.json({ error: "Could not check conversation." }, { status: 500 });
+    if (existing) {
+      const { error } = await client.supabase.from("conversations").update({ title, updated_at: new Date().toISOString() })
+        .eq("id", conversationId).eq("user_id", user.id);
+      if (error) return NextResponse.json({ error: "Could not update conversation." }, { status: 500 });
+      const { error: deleteError } = await client.supabase.from("conversation_messages").delete().eq("conversation_id", conversationId).eq("user_id", user.id);
+      if (deleteError) return NextResponse.json({ error: "Could not replace conversation messages." }, { status: 500 });
+    } else {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) return NextResponse.json({ error: "Conversation id is invalid." }, { status: 400 });
+      const { error } = await client.supabase.from("conversations").insert({ id: conversationId, user_id: user.id, title });
+      if (error) return NextResponse.json({ error: "Could not create conversation." }, { status: 500 });
+    }
   } else {
     const { data, error } = await client.supabase.from("conversations").insert({ user_id: user.id, title }).select("id").single();
     if (error || !data) return NextResponse.json({ error: "Could not create conversation." }, { status: 500 });
