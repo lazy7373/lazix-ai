@@ -174,7 +174,7 @@ async function saveExplicitMemory(supabase: SupabaseClient<Database>, userId: st
   const match = latest.content.match(/^\s*(?:please\s+)?remember(?:\s+that)?\s*[:,-]?\s*(.+)$/i);
   const fact = match?.[1]?.trim();
   if (!fact || fact.length > 250 || /(password|passcode|api[ _-]?key|token|secret|otp|one[- ]time code|credit card|cvv|ssn)/i.test(fact)) return;
-  const { data: existing } = await supabase.from("memories").select("id").eq("user_id", userId).ilike("content", fact).limit(1);
+  const { data: existing } = await supabase.from("memories").select("id").eq("user_id", userId).eq("content", fact).limit(1);
   if (!existing?.length) await supabase.from("memories").insert({ user_id: userId, content: fact });
 }
 export async function POST(request: NextRequest) {
@@ -243,11 +243,10 @@ export async function POST(request: NextRequest) {
               const memoryProvider = provider;
               const memoryUser = userId;
               const userTurnCount = messages.filter((message) => message.role === "user").length;
-              const explicitSave = saveExplicitMemory(auth.supabase, memoryUser, messages);
-              const periodicExtraction = userTurnCount > 0 && userTurnCount % 5 === 0
-                ? extractMemories(memoryProvider, auth.supabase, memoryUser, messages, reply)
-                : Promise.resolve();
-              background = Promise.all([explicitSave, periodicExtraction]).then(() => undefined);
+              const shouldExtract = userTurnCount > 0 && userTurnCount % 5 === 0;
+              background = saveExplicitMemory(auth.supabase, memoryUser, messages).then(async () => {
+                if (shouldExtract) await extractMemories(memoryProvider, auth.supabase, memoryUser, messages, reply);
+              });
             }
             finished = true;
             break;
