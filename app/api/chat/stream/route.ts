@@ -262,7 +262,6 @@ export async function POST(request: NextRequest) {
       } finally {
         if (!abortController.signal.aborted) controller.close();
       }
-    }
     },
     cancel() { abortController.abort(); }
   });
