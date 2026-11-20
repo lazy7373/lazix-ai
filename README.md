@@ -1,49 +1,55 @@
 # LAZIX — Your Own AI
 
-LAZIX is a clean, text-only chat app that connects to a language model running on infrastructure you control. It does not call OpenAI, Anthropic, Gemini, Groq, OpenRouter, or any hosted AI inference API.
+LAZIX is a clean, text-only AI chat app designed to run entirely on a cloud machine you control. The web app and the language model run together in Docker. LAZIX does not send prompts to OpenAI, Anthropic, Gemini, Groq, OpenRouter, or another hosted AI inference provider.
 
 ## Architecture
 
 ```text
-Browser
-  │
-  ▼
+Your browser
+    │ HTTPS / web
+    ▼
 LAZIX web app (Next.js)
-  │ private server-to-server connection
-  ▼
-Your GPU machine (vLLM)
-  │
-  ▼
-Open-weight language model files
+    │ private Docker network
+    ▼
+LAZIX model server (vLLM)
+    │
+    ▼
+Open-weight language model running on your GPU
 ```
 
-The web app contains the chat UI and a small streaming bridge. The model performs inference on your GPU machine. vLLM is an inference runtime, not an AI assistant framework; LAZIX does not use LangChain, CrewAI, AutoGPT, or agent modules.
+The model server is not exposed as a public port. Only the LAZIX website is published. The browser never receives the model-server token.
 
-## 1. Start the private model server
+vLLM is an inference runtime, not an AI assistant framework. LAZIX does not use LangChain, CrewAI, AutoGPT, provider SDKs, plugin systems, or an external AI API.
 
-You need a Linux machine with an NVIDIA GPU and a working NVIDIA Container Toolkit. A GPU with around 16 GB VRAM is a practical starting point for the configured 4B model, though exact requirements depend on model precision, context length, and concurrent usage.
+## Deploy the complete stack on your cloud GPU machine
 
-On that machine:
+You need a Linux cloud machine with an NVIDIA GPU, Docker Engine, Docker Compose, and NVIDIA Container Toolkit. Around 16 GB of GPU memory is a practical starting point for the configured 4B model; exact needs vary with precision, context length, and concurrent requests.
 
-1. Install Docker Engine and NVIDIA Container Toolkit.
-2. Copy `inference/docker-compose.yml` from this repository.
-3. Set a long random `LAZIX_INFERENCE_TOKEN` in the machine's environment.
-4. Start it with `docker compose -f docker-compose.yml up -d`.
-5. Keep port 8000 private. Do not expose it publicly without a firewall and access controls.
+1. Create a cloud GPU machine with a public IP.
+2. Install Docker Engine and NVIDIA Container Toolkit.
+3. Clone this repository onto that machine.
+4. Copy `.env.example` to `.env`.
+5. Edit `.env` and set two different long random secrets:
+   - `LAZIX_INFERENCE_TOKEN`
+   - `LAZIX_ACCESS_PASSWORD`
+6. Start LAZIX:
 
-The first startup downloads the model weights from Hugging Face. Prompts and inference are then handled by your own GPU server; model inference is not sent to a third-party AI API.
+```bash
+docker compose up -d --build
+```
 
-## 2. Configure the web app
+7. Open `http://YOUR_SERVER_IP:3000`. Your browser will ask for the LAZIX username and password configured in `.env`.
 
-Set these environment variables in your Next.js hosting service:
+The first launch downloads the model weights from Hugging Face and may take several minutes. After that, prompts are processed by the model running on your own GPU server. No third-party AI inference API is involved.
 
-- `LAZIX_INFERENCE_URL`: private or securely reachable base URL of your GPU server, without the `/v1` suffix.
-- `LAZIX_MODEL`: must match the model served by vLLM.
-- `LAZIX_INFERENCE_TOKEN`: the same secret configured on the GPU server.
+### Network security
 
-Redeploy the web app after setting the variables.
+- Keep GPU inference port 8000 private; Docker exposes it only inside the app's private network.
+- Expose website port 3000 only through a firewall. For a public production URL, put HTTPS in front of it using your cloud provider's TLS proxy or a reverse proxy.
+- Never commit `.env` or share either secret.
+- The website is protected by Basic Authentication. Use a long unique password.
 
-## 3. Run the web app locally
+## Run the web app locally
 
 Requirements: Node.js 20.9 or newer.
 
@@ -53,24 +59,18 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000.
+For local development, point `LAZIX_INFERENCE_URL` to your locally running vLLM server and set `LAZIX_INFERENCE_TOKEN` to the same token used by that server. Production Docker Compose configures the private container connection automatically.
 
 ## Current scope
 
 - Original responsive LAZIX chat UI.
 - Streaming text conversations.
-- Local browser conversation persistence.
+- Browser-local conversation persistence.
 - Stop-generation control.
-- One private, self-hosted model connection.
-- No provider picker, hosted AI API keys, external assistant frameworks, database, account system, or plugin system.
+- Self-hosted open-weight language model.
+- One private GPU inference service.
+- No hosted AI provider API keys, model picker, plugins, database, account system, or assistant frameworks.
 
-## Limits and costs
+## About "unlimited" usage and owning the model
 
-LAZIX does not impose a fixed message count or conversation count. Real-world usage is still bounded by GPU memory, server uptime, throughput, hosting quotas, and operating cost. A self-hosted model is not automatically trained by us: this project runs open model weights on infrastructure we control. Training a new foundation model from scratch would require a separate large-scale data and compute project.
-
-## Security
-
-- Never commit inference tokens or other secrets.
-- Keep the inference server's port private and restrict network access to the web app.
-- Use HTTPS or a private network between the web app and GPU machine.
-- Do not put inference credentials in browser code.
+LAZIX does not impose a fixed message count or conversation count. Actual capacity is still limited by GPU memory, processing speed, server uptime, network bandwidth, and cloud-provider billing. This project runs an existing open-weight foundation model on hardware you control; it does not claim that we trained a new foundation model from scratch. Training a competitive model from scratch would require a separate large-scale dataset and compute project.
