@@ -203,12 +203,9 @@ export async function POST(request: NextRequest) {
   // The UI may offer models discovered from OpenRouter's catalog. Resolve those
   // IDs against the configured OpenRouter credential without fetching the catalog
   // again on every chat request.
-  const configuredPrimary = providers[0];
-  const selectedProvider = body.modelId?.startsWith("openrouter:") && configuredPrimary?.baseUrl.includes("openrouter.ai")
-    ? { ...configuredPrimary, id: body.modelId, model: body.modelId.slice("openrouter:".length), label: body.modelId.slice("openrouter:".length) }
-    : body.modelId === "openrouter-auto-free" && configuredPrimary?.baseUrl.includes("openrouter.ai")
-      ? { ...configuredPrimary, id: "openrouter-auto-free", model: "openrouter/free", label: "OpenRouter · Auto Free" }
-      : providers.find((provider) => provider.id === body.modelId);
+  // Only accept model IDs returned by the server-side model registry; never let
+  // a browser request arbitrary model IDs against the shared provider API key.
+  const selectedProvider = providers.find((provider) => provider.id === body.modelId);
   const firstProvider = selectedProvider || providers[0];
   const ordered = [
     firstProvider,
