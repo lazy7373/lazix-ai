@@ -90,6 +90,33 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!session?.access_token) return;
+    let active = true;
+    fetch("/api/conversations", { headers: { Authorization: "Bearer " + session.access_token } })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Cloud history is unavailable.");
+        return data as { conversations?: { id: string; title: string; updated_at: string; messages: Message[] }[] };
+      })
+      .then((data) => {
+        if (!active || !Array.isArray(data.conversations)) return;
+        const remote = data.conversations.map((item) => ({ id: item.id, title: item.title, messages: item.messages || [], updatedAt: new Date(item.updated_at).getTime() }));
+        setThreads((current) => {
+          const byId = new Map(current.map((thread) => [thread.id, thread]));
+          for (const thread of remote) {
+            const local = byId.get(thread.id);
+            if (!local || thread.updatedAt >= local.updatedAt) byId.set(thread.id, thread);
+          }
+          const merged = [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 30);
+          localStorage.setItem(THREAD_KEY, JSON.stringify(merged));
+          return merged;
+        });
+        if (!activeThreadId && remote.length) { setActiveThreadId(remote[0].id); setMessages(remote[0].messages); }
+      })
+      .catch((error) => { if (active) setNotice(error.message || "Could not sync conversation history."); });
+    return () => { active = false; };
+  }, [session?.access_token]);
+  useEffect(() => {
     if (!session?.access_token) { setMemories([]); return; }
     let active = true;
     fetch("/api/memory", { headers: { Authorization: `Bearer ${session.access_token}` } })
@@ -166,6 +193,8 @@ export default function Home() {
     const text = (textOverride ?? input).trim();
     if (!text || busy) return;
     const next = [...messages, { role: "user" as const, content: text }];
+    const threadId = activeThreadId || (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now()));
+    if (!activeThreadId) setActiveThreadId(threadId);
     setMessages(next); setInput(""); setBusy(true); setNotice("");
     let assistantText = "";
     const controller = new AbortController();
@@ -212,6 +241,16 @@ export default function Home() {
       }
       if (buffer.trim()) handleEvent(buffer);
       if (!assistantText.trim()) throw new Error("The model returned an empty response. Try another model.");
+      if (session?.access_token) {
+        const title = next.find((message) => message.role === "user")?.content.slice(0, 42) || "New conversation";
+        void fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+          body: JSON.stringify({ id: threadId, title, messages: [...next, { role: "assistant", content: assistantText }] })
+        }).then(async (saved) => {
+          if (!saved.ok) { const data = await saved.json().catch(() => ({})); setNotice(data.error || "Conversation is saved on this device; cloud sync needs setup."); }
+        }).catch(() => setNotice("Conversation is saved on this device; cloud sync is unavailable."));
+      }
       if (session?.access_token && autoMemory) {
         window.setTimeout(async () => {
           try {
