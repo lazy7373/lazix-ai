@@ -93,47 +93,6 @@ export default function Home() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next); setNotice("");
     });
-    async function createCodeProposal(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!session?.access_token || codeBusy || !codeTask.trim()) return;
-    setCodeBusy(true); setCodeNotice(""); setCodeProposal(null);
-    try {
-      const response = await fetch("/api/agent/code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
-        body: JSON.stringify({ action: "propose", repository: codeRepository.trim(), path: codePath.trim(), task: codeTask.trim(), modelId: selectedModel || undefined })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not create a coding proposal.");
-      setCodeProposal(data as CodeProposal);
-      setCodeNotice("Proposal ready. Review the complete file below before applying it.");
-    } catch (error) { setCodeNotice(error instanceof Error ? error.message : "Coding proposal failed."); }
-    finally { setCodeBusy(false); }
-  }
-
-  async function applyCodeProposal() {
-    if (!session?.access_token || !codeProposal || codeBusy) return;
-    if (!window.confirm("Apply this exact file proposal to a new GitHub branch? The default branch will not be changed.")) return;
-    setCodeBusy(true); setCodeNotice("");
-    try {
-      const slug = "lazix/code-" + Date.now().toString(36);
-      const response = await fetch("/api/agent/code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
-        body: JSON.stringify({
-          action: "apply", approved: true, repository: codeProposal.repository, path: codeProposal.path,
-          content: codeProposal.content, summary: codeProposal.summary, baseSha: codeProposal.baseSha,
-          fileExists: codeProposal.fileExists, branchName: slug
-        })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Could not apply the approved proposal.");
-      setCodeNotice("Committed to " + data.branch + ". Open the branch in GitHub and review it before merging.");
-      setCodeProposal(null);
-    } catch (error) { setCodeNotice(error instanceof Error ? error.message : "Could not apply proposal."); }
-    finally { setCodeBusy(false); }
-  }
-
   return () => subscription.unsubscribe();
   }, []);
 
@@ -363,6 +322,47 @@ export default function Home() {
     setSidebarOpen(false);
     setMemoryOpen(false);
     inputRef.current?.focus();
+  }
+
+    async function createCodeProposal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session?.access_token || codeBusy || !codeTask.trim()) return;
+    setCodeBusy(true); setCodeNotice(""); setCodeProposal(null);
+    try {
+      const response = await fetch("/api/agent/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+        body: JSON.stringify({ action: "propose", repository: codeRepository.trim(), path: codePath.trim(), task: codeTask.trim(), modelId: selectedModel || undefined })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create a coding proposal.");
+      setCodeProposal(data as CodeProposal);
+      setCodeNotice("Proposal ready. Review the complete file below before applying it.");
+    } catch (error) { setCodeNotice(error instanceof Error ? error.message : "Coding proposal failed."); }
+    finally { setCodeBusy(false); }
+  }
+
+  async function applyCodeProposal() {
+    if (!session?.access_token || !codeProposal || codeBusy) return;
+    if (!window.confirm("Apply this exact file proposal to a new GitHub branch? The default branch will not be changed.")) return;
+    setCodeBusy(true); setCodeNotice("");
+    try {
+      const slug = "lazix/code-" + Date.now().toString(36);
+      const response = await fetch("/api/agent/code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + session.access_token },
+        body: JSON.stringify({
+          action: "apply", approved: true, repository: codeProposal.repository, path: codeProposal.path,
+          content: codeProposal.content, summary: codeProposal.summary, baseSha: codeProposal.baseSha,
+          fileExists: codeProposal.fileExists, branchName: slug
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not apply the approved proposal.");
+      setCodeNotice("Committed to " + data.branch + ". Open the branch in GitHub and review it before merging.");
+      setCodeProposal(null);
+    } catch (error) { setCodeNotice(error instanceof Error ? error.message : "Could not apply proposal."); }
+    finally { setCodeBusy(false); }
   }
 
   return (
