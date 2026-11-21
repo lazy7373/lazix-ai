@@ -11,6 +11,7 @@ type Memory = { id: string; content: string; created_at: string };
 type ModelOption = { id: string; label: string; model: string };
 type IntegrationStatus = { webSearch: boolean; githubRead: boolean };
 type Thread = { id: string; title: string; messages: Message[]; updatedAt: number };
+type CodeProposal = { repository: string; path: string; summary: string; content: string; baseSha: string | null; fileExists: boolean; model: string };
 const CHAT_KEY = "lazix-chat-v2";
 const AUTO_KEY = "lazix-auto-memory";
 const THREAD_KEY = "lazix-threads-v1";
@@ -47,6 +48,13 @@ export default function Home() {
   const [autoMemory, setAutoMemory] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeRepository, setCodeRepository] = useState("lazy7373/lazix-ai");
+  const [codePath, setCodePath] = useState("README.md");
+  const [codeTask, setCodeTask] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeProposal, setCodeProposal] = useState<CodeProposal | null>(null);
+  const [codeNotice, setCodeNotice] = useState("");
   const [model, setModel] = useState("");
   const [models, setModels] = useState<ModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState("");
@@ -323,12 +331,13 @@ export default function Home() {
         <div className="side-brand"><div className="logo-mark">L</div><span>LAZIX</span><span className="version-pill">BETA</span></div>
         <button className="new-chat" onClick={newChat}><span>＋</span> New conversation</button>
         <div className="side-label">WORKSPACE</div>
-        <button className={`nav-item ${!memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(false); setSidebarOpen(false); }}><span>◫</span> Chat</button>
+        <button className={`nav-item ${!memoryOpen && !codeOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(false); setCodeOpen(false); setSidebarOpen(false); }}><span>◫</span> Chat</button>
+        <button className={`nav-item ${codeOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(false); setCodeOpen(true); setSidebarOpen(false); }}><span>⌘</span> LAZIX CODE</button>
         <div className="side-label thread-heading">RECENT</div>
         <div className="thread-list">
           {threads.slice(0, 18).map((thread) => <button key={thread.id} className={"thread-item " + (thread.id === activeThreadId ? "thread-active" : "")} onClick={() => openThread(thread)} title={thread.title}><span>▤</span><b>{thread.title}</b></button>)}
         </div>
-        <button className={`nav-item ${memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(!memoryOpen); setSidebarOpen(false); }}><span>◈</span> Memory <span className="nav-count">{memories.length}</span></button>
+        <button className={`nav-item ${memoryOpen ? "active" : ""}`} onClick={() => { setMemoryOpen(!memoryOpen); setCodeOpen(false); setSidebarOpen(false); }}><span>◈</span> Memory <span className="nav-count">{memories.length}</span></button>
         <div className="side-spacer" />
         <div className="agent-status"><span className="online-dot" /><div><b>Agent engine</b><small>{integrations.webSearch ? "Web research" : "Core tools"}{integrations.githubRead ? " · GitHub connected" : ""}</small></div></div>
         <div className="side-account">
@@ -340,7 +349,7 @@ export default function Home() {
       <section className="main-area">
         <header className="main-header">
           <button className="mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open menu">☰</button>
-          <div className="breadcrumb"><span>Workspace</span><i>/</i><b>{memoryOpen ? "Memory" : "Assistant"}</b></div>
+          <div className="breadcrumb"><span>Workspace</span><i>/</i><b>{memoryOpen ? "Memory" : codeOpen ? "LAZIX CODE" : "Assistant"}</b></div>
           <div className="header-right"><span className="secure-label"><i /> PRIVATE SESSION</span><button className="header-new" onClick={newChat}>＋ <span>New chat</span></button></div>
         </header>
 
@@ -362,6 +371,30 @@ export default function Home() {
               <div className="memory-collection">{memories.length ? memories.map((memory) => <div className="memory-row" key={memory.id}><span className="memory-glyph">◈</span><p>{memory.content}</p><button onClick={() => deleteMemory(memory.id)} aria-label="Delete memory">×</button></div>) : <div className="memory-empty"><span>◈</span><b>Your memory is a blank canvas.</b><small>Save a detail here or turn on automatic memory while chatting.</small></div>}</div>
             </>}
             {notice && <p className="inline-note">{notice}</p>}
+          </div>
+        ) : codeOpen ? (
+          <div className="code-page">
+            <div className="page-kicker">AUTONOMOUS CODING WORKSPACE</div>
+            <h1>Build with <em>LAZIX CODE.</em></h1>
+            <p className="page-subtitle">Describe a focused change. LAZIX reads one file, prepares a proposal, and waits for your approval before creating a GitHub branch.</p>
+            {!session ? <div className="code-card"><b>Sign in required</b><p>Open Memory from the sidebar to sign in. Coding actions are restricted to the configured LAZIX owner.</p></div> : (
+              <>
+                <form className="code-card code-form" onSubmit={createCodeProposal}>
+                  <label>GitHub repository<input value={codeRepository} onChange={(e) => setCodeRepository(e.target.value)} placeholder="owner/repository" required /></label>
+                  <label>Target file path<input value={codePath} onChange={(e) => setCodePath(e.target.value)} placeholder="src/file.ts" required /></label>
+                  <label>What should LAZIX change?<textarea value={codeTask} onChange={(e) => setCodeTask(e.target.value)} placeholder="Describe the exact change. Keep the task focused on one file." rows={4} maxLength={4000} required /></label>
+                  <button className="primary-button" disabled={codeBusy || !codeTask.trim()}>{codeBusy ? "Working..." : "Generate proposal ↗"}</button>
+                </form>
+                {codeNotice && <p className="inline-note code-notice" role="status">{codeNotice}</p>}
+                {codeProposal && <section className="code-card code-review">
+                  <div className="code-review-head"><div><span className="page-kicker">REVIEW REQUIRED</span><h2>{codeProposal.path}</h2></div><span className="code-model">{codeProposal.model}</span></div>
+                  <p>{codeProposal.summary}</p>
+                  <textarea className="code-output" value={codeProposal.content} readOnly aria-label="Proposed complete file content" />
+                  <div className="code-review-actions"><small>{codeProposal.fileExists ? "Existing file · stale-change protection enabled" : "New file · stale-change protection enabled"}</small><button className="primary-button" onClick={applyCodeProposal} disabled={codeBusy}>{codeBusy ? "Applying..." : "Approve & create branch"}</button></div>
+                </section>}
+              </>
+            )}
+            <div className="code-safety-note"><b>Safety by default</b><span>Every proposal is reviewed before writing. Approved changes go to a new lazix/ branch; LAZIX never merges them automatically. Shell execution and test running are not enabled yet.</span></div>
           </div>
         ) : (
           <div className="chat-layout">
