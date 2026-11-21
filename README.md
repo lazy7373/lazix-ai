@@ -76,7 +76,7 @@ Free provider plans have usage limits and availability constraints. LAZIX does n
 - `GITHUB_TOKEN` plus `LAZIX_OWNER_USER_ID`: enables owner-only GitHub actions. Set the owner ID to the signed-in Supabase user's UUID. For read-only chat access, use a fine-grained token with **Contents: Read-only**. To enable approved coding commits, grant **Contents: Read and write** only to repositories LAZIX should edit. Never expose this token in client-side code.
 - `POST /api/agent/code`: owner-only coding-agent endpoint. The `propose` action reads one target file and asks the configured model for a complete replacement proposal. The `apply` action requires `approved: true`, the proposal's original `baseSha`, and the exact proposed content; it creates a `lazix/...` branch and commits the file there. It never merges to the default branch. See [docs/LAZIX_CODE_AGENT.md](docs/LAZIX_CODE_AGENT.md).
 
-The initial coding-agent slice deliberately edits one file per proposal. It does not yet run shell commands, install dependencies, execute tests, or provide a dedicated coding UI. Those require a separately isolated workspace/runtime; do not run untrusted repository commands inside the web server.
+The initial coding-agent slice deliberately edits one file per proposal. It does not yet run shell commands, install dependencies, or execute tests. The current coding UI is a focused single-file proposal and review screen. Those require a separately isolated workspace/runtime; do not run untrusted repository commands inside the web server.
 
 ## Roadmap
 
