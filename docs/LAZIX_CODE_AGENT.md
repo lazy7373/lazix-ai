@@ -63,7 +63,7 @@ For a new file, use `baseSha: null` and `fileExists: false`. The branch name mus
 - Repository contents are treated as untrusted data, not instructions.
 - Apply requires an explicit approval boolean and checks the original blob SHA to reject stale proposals.
 - Writes are limited to a new review branch; LAZIX does not merge it.
-- The endpoint does not execute repository code, shell commands, package scripts, or tests.
+- The current review UI is available from the LAZIX sidebar. It does not execute repository code, shell commands, package scripts, or tests.
 
 ## Next engineering phases
 
