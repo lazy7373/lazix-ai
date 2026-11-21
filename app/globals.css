@@ -61,7 +61,7 @@
 .code-card{border:1px solid #30394b;background:#121a27;border-radius:14px;padding:18px;margin-top:18px}
 .code-form{display:grid;gap:13px}
 .code-form label{display:grid;gap:7px;color:#c8cede;font-size:10px;font-weight:700;letter-spacing:.3px}
-.code-form input,.code-form textarea{width:100%;min-width:0;border:1px solid #354158;border-radius:9px;background:#0b111b;color:var(--text);padding:12px;font:12px/1.6 inherit;outline:none}
+.code-form input,.code-form textarea{width:100%;min-width:0;border:1px solid #354158;border-radius:9px;background:#0b111b;color:var(--text);padding:12px;font:inherit;font-size:12px;line-height:1.6;outline:none}
 .code-form input:focus,.code-form textarea:focus{border-color:#9384eb;box-shadow:0 0 0 2px #9384eb22}
 .code-form textarea{resize:vertical;min-height:95px}
 .code-form .primary-button{justify-self:start;min-width:170px}
