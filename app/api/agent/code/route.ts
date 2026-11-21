@@ -13,6 +13,8 @@ type Input = {
   task?: string;
   modelId?: string;
   approved?: boolean;
+  baseSha?: string | null;
+  fileExists?: boolean;
   content?: string;
   summary?: string;
   branchName?: string;
@@ -116,13 +118,15 @@ async function apply(input: Input) {
   if (!/^lazix\/[a-z0-9-]{3,60}$/.test(branchName)) throw new Error("Branch name must start with lazix/ and contain only lowercase letters, numbers, and hyphens.");
   if (content.length > 100000) throw new Error("File content exceeds the 100 KB limit.");
 
+  const current = await readTarget(repository, path);
+  if ((input.baseSha ?? null) !== current.sha || (input.fileExists === false && current.exists)) {
+    throw new Error("The target file changed after the proposal was generated. Generate a fresh proposal before applying.");
+  }
   const repo = await github<{ default_branch: string }>("https://api.github.com/repos/" + repository);
   const ref = await github<{ object: { sha: string } }>("https://api.github.com/repos/" + repository + "/git/ref/heads/" + encodeURIComponent(repo.default_branch));
   await github("https://api.github.com/repos/" + repository + "/git/refs", {
     method: "POST", body: JSON.stringify({ ref: "refs/heads/" + branchName, sha: ref.object.sha })
   });
-
-  const current = await readTarget(repository, path);
   const encoded = path.split("/").map(encodeURIComponent).join("/");
   const payload: Record<string, unknown> = {
     message: "LAZIX CODE: " + (input.summary || "update " + path).slice(0, 120),
