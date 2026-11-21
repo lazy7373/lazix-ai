@@ -73,15 +73,16 @@ Free provider plans have usage limits and availability constraints. LAZIX does n
 ## Optional agent integrations
 
 - `TAVILY_API_KEY`: enables the `web_search` tool for current web research and source URLs.
-- `GITHUB_TOKEN` plus `LAZIX_OWNER_USER_ID`: enables read-only file access for the configured LAZIX owner only. Use a fine-grained token with **Contents: Read-only** and only the repositories LAZIX needs. Set the owner ID to the signed-in Supabase user's UUID. Never expose this token in client-side code.
+- `GITHUB_TOKEN` plus `LAZIX_OWNER_USER_ID`: enables owner-only GitHub actions. Set the owner ID to the signed-in Supabase user's UUID. For read-only chat access, use a fine-grained token with **Contents: Read-only**. To enable approved coding commits, grant **Contents: Read and write** only to repositories LAZIX should edit. Never expose this token in client-side code.
+- `POST /api/agent/code`: owner-only coding-agent endpoint. The `propose` action reads one target file and asks the configured model for a complete replacement proposal. The `apply` action requires `approved: true`, the proposal's original `baseSha`, and the exact proposed content; it creates a `lazix/...` branch and commits the file there. It never merges to the default branch. See [docs/LAZIX_CODE_AGENT.md](docs/LAZIX_CODE_AGENT.md).
 
-The agent exposes only integrations whose server-side credentials are configured. GitHub write access is not enabled yet; repository edits need an explicit approval and reviewable-branch workflow.
+The initial coding-agent slice deliberately edits one file per proposal. It does not yet run shell commands, install dependencies, or execute tests. The current coding UI is a focused single-file proposal and review screen. Those require a separately isolated workspace/runtime; do not run untrusted repository commands inside the web server.
 
 ## Roadmap
 
 1. **Foundation:** streaming chat, secure provider adapters, cloud conversations, durable memory, and model selection.
 2. **Research:** deeper multi-hop research, better source handling, and citations.
-3. **Coding agent:** repository analysis, proposed diffs, approval, branch creation, and tests.
+3. **Coding agent:** expand the owner-only single-file proposal flow into multi-file plans, isolated execution, test runs, and a review UI.
 4. **Agent workflows:** task planning, safe execution, and scheduled automation.
 5. **Installability:** complete PWA support and explore Android packaging.
 
