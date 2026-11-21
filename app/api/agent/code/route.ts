@@ -28,10 +28,18 @@ const githubHeaders = () => ({
 });
 
 function validTarget(repository: string, path: string) {
+  const parts = path.split("/");
+  const sensitive = parts.some((part) =>
+    /^\.env(?:$|\.)/i.test(part) ||
+    /^\.git$/i.test(part) ||
+    /^(?:id_rsa|id_ed25519|secrets?)$/i.test(part) ||
+    /(?:^|[._-])(?:secret|credentials?)(?:[._-]|$)/i.test(part) ||
+    /\.(?:pem|key|p12|pfx)$/i.test(part)
+  );
   return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) &&
     repository.split("/").length === 2 &&
     path.length > 0 && path.length <= 240 &&
-    !path.startsWith("/") && !path.split("/").some((part) => part === ".." || part === ".");
+    !path.startsWith("/") && !parts.some((part) => part === ".." || part === ".") && !sensitive;
 }
 
 async function ownerSession(request: NextRequest) {
