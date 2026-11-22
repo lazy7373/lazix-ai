@@ -57,7 +57,7 @@ export async function getModelProviders(discoverCatalog = true): Promise<ModelPr
     if (cachedCatalog && cachedCatalog.expiresAt > Date.now()) return cachedCatalog.providers;
     const primary = configured[0];
     if (!process.env.MODEL_PROVIDERS_JSON && primary?.baseUrl.includes("openrouter.ai")) {
-      const backupIds = ["nvidia/nemotron-3.5-lightning:free", "cohere/north-mini-code:free", "nvidia/nemotron-3.5-super-vl:free"];
+      const backupIds = ["nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3.5-super-vl:free", "nvidia/nemotron-3-ultra-550b-a55b:free"];
       const quickFallbacks: ModelProvider[] = [
         { id: "openrouter-auto-free", label: "OpenRouter · Auto Free", baseUrl: primary.baseUrl, apiKey: primary.apiKey, model: "openrouter/free" },
         ...configured,
@@ -89,7 +89,6 @@ export async function getModelProviders(discoverCatalog = true): Promise<ModelPr
     );
     const preferred = [
       "nvidia/nemotron-3.5-lightning:free",
-      "cohere/north-mini-code:free",
       "nvidia/nemotron-3.5-super-vl:free",
       "nvidia/nemotron-3-ultra-550b-a55b:free"
     ];
