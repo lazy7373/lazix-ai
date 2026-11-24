@@ -93,6 +93,16 @@ The agent exposes only integrations whose server-side credentials are configured
 - Coding tasks should use reviewable branches and reversible changes.
 - LAZIX must report honestly what it did and did not do.
 
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the local development and pull request process. GitHub Actions runs linting and a production build on pushes and pull requests to `main`.
+
+See [SECURITY.md](SECURITY.md) for how to report a security issue.
+
+## License
+
+LAZIX is released under the MIT License. See [LICENSE](LICENSE) for details.
+
 ## Project status
 
 Active rebuild. The core streaming assistant, provider routing, memory, cloud conversation sync, and optional read-only integrations are being implemented and tested. It is not yet a complete autonomous assistant.
