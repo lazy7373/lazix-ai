@@ -27,7 +27,7 @@ export async function GET() {
           Boolean(provider.baseUrl && provider.apiKey && provider.model);
       });
     } catch {
-      aiProviderConfigured = false;
+      // Match the provider loader: malformed JSON falls back to legacy variables.
     }
   }
 
