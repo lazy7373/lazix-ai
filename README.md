@@ -101,7 +101,7 @@ The agent exposes only integrations whose server-side credentials are configured
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local development and pull request process. GitHub Actions runs linting and a production build on pushes and pull requests to `main`.
 
-See [SECURITY.md](SECURITY.md) for how to report a security issue, [docs/deployment.md](docs/deployment.md) for deployment notes, and [docs/operations.md](docs/operations.md) for VPS operation, monitoring, updates, and backup guidance.
+See [SECURITY.md](SECURITY.md) for how to report a security issue, [docs/deployment.md](docs/deployment.md) for deployment notes, and [docs/operations.md](docs/operations.md) for VPS operation, monitoring, updates, and backup guidance. The [VPS sponsorship plan](docs/vps-sponsorship.md) explains the requested resources and intended use.
 
 ## License
 
