@@ -97,7 +97,7 @@ The agent exposes only integrations whose server-side credentials are configured
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local development and pull request process. GitHub Actions runs linting and a production build on pushes and pull requests to `main`.
 
-See [SECURITY.md](SECURITY.md) for how to report a security issue.
+See [SECURITY.md](SECURITY.md) for how to report a security issue, and [docs/deployment.md](docs/deployment.md) for deployment notes.
 
 ## License
 
