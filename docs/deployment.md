@@ -28,6 +28,16 @@ docker run -d --name lazix --restart unless-stopped -p 3000:3000 --env-file /pat
 
 The container listens on port 3000 on all interfaces. Put a reverse proxy with HTTPS in front of it before making it public. Do not bake secrets into the image or commit an environment file.
 
+For a simpler single-server setup, copy `.env.example` to `.env.local`, fill in the values, and use the included Compose file:
+
+```sh
+docker compose up -d --build
+docker compose ps
+docker compose logs --tail=100 lazix
+```
+
+Compose reads `.env.local` from the repository root and checks `/api/health` for container health. The endpoint exposes configuration booleans only, never credentials. See [operations.md](operations.md) for VPS sizing, updates, backups, and network guidance.
+
 ## Environment variables
 
 Start with `.env.example` and configure only the integrations you intend to use.
@@ -49,4 +59,4 @@ For a new Supabase project, apply the SQL migrations in `supabase/migrations/` i
 - Test sign-in, chat, memory, and provider failure handling.
 - Keep dependencies and the host operating system updated.
 
-The Docker image and deployment commands are a starting point. A production deployment has not yet been tested against a live host, database, or model provider.
+The Docker image and deployment commands are a starting point. A production deployment has not yet been tested against a live host, database, or model provider. The Docker build is checked by GitHub Actions, but this is not a substitute for a live deployment test.
