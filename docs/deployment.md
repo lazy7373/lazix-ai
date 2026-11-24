@@ -10,6 +10,24 @@ LAZIX is a Next.js application. It needs a Node.js runtime; it is not a static-o
 - Start with `npm run start`
 - The default Next.js port is 3000.
 
+## Docker deployment
+
+A production Dockerfile is included and uses Next.js standalone output to keep the runtime image smaller.
+
+Build the image from the repository root:
+
+```sh
+docker build -t lazix:latest .
+```
+
+Run it, supplying production environment variables through your host's secret manager or an environment file stored outside the repository:
+
+```sh
+docker run -d --name lazix --restart unless-stopped -p 3000:3000 --env-file /path/to/lazix.env lazix:latest
+```
+
+The container listens on port 3000 on all interfaces. Put a reverse proxy with HTTPS in front of it before making it public. Do not bake secrets into the image or commit an environment file.
+
 ## Environment variables
 
 Start with `.env.example` and configure only the integrations you intend to use.
@@ -31,4 +49,4 @@ For a new Supabase project, apply the SQL migrations in `supabase/migrations/` i
 - Test sign-in, chat, memory, and provider failure handling.
 - Keep dependencies and the host operating system updated.
 
-These notes describe the current deployment approach. A production Docker setup and automated deployment pipeline have not been added yet.
+The Docker image and deployment commands are a starting point. A production deployment has not yet been tested against a live host, database, or model provider.
