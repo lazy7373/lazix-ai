@@ -2,7 +2,9 @@
 
 **Think less. Achieve more.**
 
-LAZIX is an independent, text-first personal AI workspace designed for Android tablets and phones. It is being rebuilt in small, testable phases.
+LAZIX is an independent, text-first AI workspace built for people who want one place to chat with different model providers, keep useful context, and gradually add safe agent workflows. The interface is designed to work well on phones and Android tablets.
+
+The project is an active rebuild. The features below describe what is present in the repository today; planned coding-agent capabilities are listed separately in the roadmap.
 
 ## Current foundation
 
@@ -13,6 +15,8 @@ LAZIX is an independent, text-first personal AI workspace designed for Android t
 - Multi-provider routing, model picker, free OpenRouter model discovery, and automatic fallback.
 - Bounded tool-calling agent with calculator, date/time, memory search, optional web search, and owner-only read-only GitHub file access.
 - Server-side API keys; keys are never sent to the browser.
+- A non-sensitive `/api/health` endpoint for container and uptime checks.
+- Docker and Docker Compose deployment files, plus a CI job that builds the production image.
 - No voice features and no dependency on OmniRoute.
 
 ## Run locally
@@ -97,7 +101,7 @@ The agent exposes only integrations whose server-side credentials are configured
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the local development and pull request process. GitHub Actions runs linting and a production build on pushes and pull requests to `main`.
 
-See [SECURITY.md](SECURITY.md) for how to report a security issue, and [docs/deployment.md](docs/deployment.md) for deployment notes.
+See [SECURITY.md](SECURITY.md) for how to report a security issue, [docs/deployment.md](docs/deployment.md) for deployment notes, and [docs/operations.md](docs/operations.md) for VPS operation, monitoring, updates, and backup guidance.
 
 ## License
 
@@ -105,4 +109,4 @@ LAZIX is released under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Project status
 
-Active rebuild. The core streaming assistant, provider routing, memory, cloud conversation sync, and optional read-only integrations are being implemented and tested. It is not yet a complete autonomous assistant.
+Active rebuild. The repository contains a working Next.js application foundation, but a live public deployment, real-world load profile, and complete autonomous coding workflow have not yet been demonstrated. Contributions and reproducible testing are welcome.
